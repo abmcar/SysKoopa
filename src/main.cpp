@@ -33,9 +33,11 @@ int main(int argc, const char *argv[]) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  ast->Dump();
-  cout << endl;
+  // ast->Dump();
+  // cout << endl;
   // 输出解析得到的 AST, 其实就是个字符串
-  // cout << *ast << endl;
+  cout << *ast << endl;
+  freopen(output,"w",stdout);
+  cout << *ast;
   return 0;
 }

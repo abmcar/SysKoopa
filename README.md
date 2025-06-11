@@ -84,9 +84,9 @@ cmake -B build
 cmake --build build
 ```
 ### Compile SysY code
-```
-./build/syskoopa -koopa tests/example.sy -o output.koopa
-./build/syskoopa -riscv output.koopa -o output.s
+```bash
+build/compiler -koopa hello.c -o hello.koopa
+./build/scompiler -riscv output.koopa -o output.s
 ```
 Note: You can also use flags like -emit-koopa or -emit-riscv depending on your implementation.
 
@@ -98,8 +98,8 @@ Note: You can also use flags like -emit-koopa or -emit-riscv depending on your i
 ## 🧪 Test Cases
 
 Test cases are located in the tests/ directory. Use the provided script to run tests:
-```
-./scripts/run_tests.sh
+```bash
+autotest -koopa -s lv1 .
 ```
 ## 🎓 Course Context
 

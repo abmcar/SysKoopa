@@ -54,6 +54,7 @@ using namespace std;
 // 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
 // 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
+// CompUnit ::= FuncDef
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
