@@ -53,5 +53,5 @@ void BlockAST::print(std::ostream &os) const {
 }
 
 void StmtAST::print(std::ostream &os) const {
-    os << "ret " << number << "\n";
+    os << "  ret " << number << "\n";
 }
