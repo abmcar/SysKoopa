@@ -2,3 +2,5 @@
 /build
 hello.koopa
 hello.c
+hello.s
+.vscode
