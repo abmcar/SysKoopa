@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "koopa.h"
 #include "util.h"
+#include "riscv_codegen.h"
 
 using namespace std;
 
@@ -35,7 +36,8 @@ int main(int argc, const char *argv[]) {
   if (string(mode) == "-koopa") {
     write_file(output, irs);
   } else if (string(mode) == "-riscv") {
-    string riscv_str = convert_ir_riscv(irs);
+    CodeGen *codegen = new CodeGen(irs);
+    string riscv_str = codegen->gererate();
     write_file(output, riscv_str);
     cout << riscv_str << endl;
   } else {

@@ -30,8 +30,8 @@ find_package(FLEX REQUIRED)
 find_package(BISON REQUIRED)
 
 # generate lexer/parser
-file(GLOB_RECURSE L_SOURCES "src/*.l")
-file(GLOB_RECURSE Y_SOURCES "src/*.y")
+file(GLOB_RECURSE L_SOURCES "src/frontend/*.l")
+file(GLOB_RECURSE Y_SOURCES "src/frontend/*.y")
 if(NOT (L_SOURCES STREQUAL "" AND Y_SOURCES STREQUAL ""))
   string(REGEX REPLACE ".*/(.*)\\.l" "${CMAKE_CURRENT_BINARY_DIR}/\\1.lex${FB_EXT}" L_OUTPUTS "${L_SOURCES}")
   string(REGEX REPLACE ".*/(.*)\\.y" "${CMAKE_CURRENT_BINARY_DIR}/\\1.tab${FB_EXT}" Y_OUTPUTS "${Y_SOURCES}")
@@ -45,6 +45,10 @@ link_directories(${LIB_DIR})
 
 # project include directories
 include_directories(src)
+include_directories(include)
+include_directories(src/frontend)
+include_directories(src/backend)
+include_directories(src/ir)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${INC_DIR})
 
@@ -52,8 +56,13 @@ include_directories(${INC_DIR})
 file(GLOB_RECURSE C_SOURCES "src/*.c")
 file(GLOB_RECURSE CXX_SOURCES "src/*.cpp")
 file(GLOB_RECURSE CC_SOURCES "src/*.cc")
-set(SOURCES ${C_SOURCES} ${CXX_SOURCES} ${CC_SOURCES}
-            ${FLEX_Lexer_OUTPUTS} ${BISON_Parser_OUTPUT_SOURCE})
+
+file(GLOB_RECURSE FRONTEND_SOURCES "src/frontend/*.cpp")
+file(GLOB_RECURSE BACKEND_SOURCES "src/backend/*.cpp")
+file(GLOB_RECURSE IR_SOURCES "src/ir/*.cpp")
+set(SOURCES ${FRONTEND_SOURCES} ${BACKEND_SOURCES} ${IR_SOURCES}
+  ${C_SOURCES} ${CXX_SOURCES} ${CC_SOURCES}
+  ${FLEX_Lexer_OUTPUTS} ${BISON_Parser_OUTPUT_SOURCE})
 
 # executable
 add_executable(compiler ${SOURCES})
