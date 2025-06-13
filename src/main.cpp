@@ -6,7 +6,6 @@
 #include <string>
 
 #include "ast.h"
-#include "koopa.h"
 #include "util.h"
 #include "riscv_codegen.h"
 
@@ -28,6 +27,8 @@ int main(int argc, const char *argv[]) {
   unique_ptr<BaseAST> ast;
   auto ret = yyparse(ast);
   assert(!ret);
+
+  ast->Dump();
 
   stringstream oss;
   oss << *ast;

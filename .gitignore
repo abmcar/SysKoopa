@@ -4,3 +4,5 @@ hello.koopa
 hello.c
 hello.s
 .vscode
+.cache
+compile_commands.json

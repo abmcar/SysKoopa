@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
 project(compiler)
 
+# 自动生成compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # settings
 # set to OFF to enable C mode
 set(CPP_MODE ON)

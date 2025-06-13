@@ -34,6 +34,7 @@ using namespace std;
 %union {
   std::string *str_val;
   int int_val;
+  UnaryOpKind unary_op_kind;
   BaseAST *ast_val;
 }
 
@@ -44,8 +45,9 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp
 %type <int_val> Number
+%type <unary_op_kind> UnaryOp
 
 %%
 
@@ -84,7 +86,7 @@ FuncDef
   }
   ;
 
-// 同上, 不再解释
+// FuncType ::= "int";
 FuncType
   : INT {
     auto ast = new FuncTypeAST();
@@ -93,6 +95,7 @@ FuncType
   }
   ;
 
+// Block ::= "{" Stmt "}";
 Block
   : '{' Stmt '}' {
     auto ast = new BlockAST();
@@ -101,13 +104,69 @@ Block
   }
   ;
 
+// Stmt ::= "return" Exp ";";
 Stmt
-  : RETURN Number ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->number = $2;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
+
+// Exp ::= UnaryExp;
+Exp
+  : UnaryExp {
+    auto ast = new ExpAST();
+    ast->unary_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
+UnaryExp
+  : PrimaryExp {
+    auto ast = new UnaryExpAST();
+    ast->kind = UnaryExpAST::Kind::PRIMARY_EXP;
+    ast->primary_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | UnaryOp UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->kind = UnaryExpAST::Kind::UNARY_OP_EXP;
+    ast->unary_op = $1;
+    ast->unary_exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+// PrimaryExp ::= "(" Exp ")" | Number;
+PrimaryExp
+  : '(' Exp ')' {
+    auto ast = new PrimaryExpAST();
+    ast->kind = PrimaryExpAST::Kind::EXP;
+    ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | Number {
+    auto ast = new PrimaryExpAST();
+    ast->kind = PrimaryExpAST::Kind::NUMBER;
+    ast->number = $1;
+    $$ = ast;
+  }
+  ;
+
+// UnaryOp ::= "+" | "-" | "!";
+UnaryOp
+  : '+' {
+    $$ = UnaryOpKind::Plus;
+  }
+  | '-' {
+    $$ = UnaryOpKind::Minus;
+  }
+  | '!' {
+    $$ = UnaryOpKind::Not;
+  }
+;
 
 Number
   : INT_CONST {

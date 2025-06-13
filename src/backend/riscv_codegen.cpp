@@ -100,4 +100,4 @@ int32_t CodeGen::get_value(const koopa_raw_value_t val) {
   return val->kind.data.integer.value;
 }
 
-void CodeGen::Visit(const koopa_raw_integer_t &i32) {}
+void CodeGen::Visit(const koopa_raw_integer_t &i32) { oss << i32.value; }
