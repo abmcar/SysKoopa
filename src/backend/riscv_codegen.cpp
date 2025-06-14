@@ -1,5 +1,42 @@
 // riscv_codegen.cpp
 #include "riscv_codegen.h"
+#include "koopa.h"
+#include <string>
+
+std::string AddrManager::getReg() {
+  auto reg = used_regs.begin();
+  std::string reg_str = *reg;
+  used_regs.erase(reg);
+  return reg_str;
+}
+
+void AddrManager::freeReg(const std::string &reg) {
+  if (reg == "x0") {
+    return;
+  }
+  used_regs.insert(reg);
+}
+
+std::string AddrManager::getAddr(const koopa_raw_binary_t &binary) {
+  if (raw_bin_addr_map.find(&binary) == raw_bin_addr_map.end()) {
+    raw_bin_addr_map[&binary] = getReg();
+  }
+  return raw_bin_addr_map[&binary];
+}
+
+std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
+  if (value->kind.tag == KOOPA_RVT_INTEGER &&
+      value->kind.data.integer.value == 0) {
+    return "x0";
+  }
+  if (value->kind.tag == KOOPA_RVT_BINARY) {
+    return getAddr(value->kind.data.binary);
+  }
+  if (raw_val_addr_map.find(&value) == raw_val_addr_map.end()) {
+    raw_val_addr_map[&value] = getReg();
+  }
+  return raw_val_addr_map[&value];
+}
 
 CodeGen::CodeGen(const std::string &koopa_ir) {
   const char *str = koopa_ir.c_str();
@@ -14,7 +51,7 @@ CodeGen::~CodeGen() { koopa_delete_raw_program_builder(builder); }
 
 std::string CodeGen::gererate() {
   Visit(raw);
-  return oss_.str();
+  return oss.str();
 }
 
 // 后面是 Visit 的类成员定义（略）...
@@ -85,6 +122,10 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     // 访问 integer 指令
     Visit(kind.data.integer);
     break;
+  case KOOPA_RVT_BINARY:
+    // 访问 binary 指令
+    Visit(kind.data.binary);
+    break;
   default:
     // 其他类型暂时遇不到
     assert(false);
@@ -92,7 +133,11 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
 }
 
 void CodeGen::Visit(const koopa_raw_return_t &ret) {
-  oss << "  li a0, " << get_value(ret.value) << "\n";
+  if (ret.value->kind.tag == KOOPA_RVT_INTEGER) {
+    oss << "  li a0, " << get_value(ret.value) << "\n";
+  } else {
+    oss << "  mv a0, " << addr_manager.getAddr(ret.value) << "\n";
+  }
   oss << "  ret\n";
 }
 
@@ -101,3 +146,39 @@ int32_t CodeGen::get_value(const koopa_raw_value_t val) {
 }
 
 void CodeGen::Visit(const koopa_raw_integer_t &i32) { oss << i32.value; }
+
+void CodeGen::Visit(const koopa_raw_binary_t &binary) {
+  std::string lhs_addr = addr_manager.getAddr(binary.lhs);
+  std::string rhs_addr = addr_manager.getAddr(binary.rhs);
+  cmd_li(binary.lhs, lhs_addr);
+  cmd_li(binary.rhs, rhs_addr);
+  std::string res_addr = addr_manager.getAddr(binary);
+
+  switch (binary.op) {
+  case KOOPA_RBO_SUB:
+    oss << "  sub " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_NOT_EQ:
+
+    break;
+  case KOOPA_RBO_EQ:
+    oss << "  xor " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    oss << "  seqz " << res_addr << ", " << res_addr << "\n";
+    break;
+  default:
+    assert(false);
+  }
+}
+
+void CodeGen::cmd_li(const koopa_raw_value_t &value,
+                     const std::string &res_addr) {
+  if (res_addr == "x0") {
+    return;
+  }
+  if (value->kind.tag == KOOPA_RVT_INTEGER) {
+    oss << "  li " << res_addr << ", " << get_value(value) << "\n";
+    addr_manager.freeReg(res_addr);
+  } else if (value->kind.tag == KOOPA_RVT_BINARY) {
+    // oss << "  li " << res_addr << ", " << get_value(value) << "\n";
+  }
+}
