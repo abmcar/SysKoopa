@@ -95,8 +95,10 @@ void CodeGen::Visit(const koopa_raw_slice_t &slice) {
 // 访问函数
 void CodeGen::Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
-  oss << "  .globl " << func->name << "\n";
-  oss << func->name << ":\n";
+  std::string func_name = func->name;
+  func_name.erase(0, 1);
+  oss << "  .globl " << func_name << "\n";
+  oss << func_name << ":\n";
   // 访问所有基本块
   Visit(func->bbs);
 }
