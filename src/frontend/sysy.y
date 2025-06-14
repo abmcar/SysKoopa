@@ -36,6 +36,7 @@ using namespace std;
   int int_val;
   UnaryOpKind unary_op_kind;
   BaseAST *ast_val;
+  ExpAST *exp_ast_val;
 }
 
 // lexer 返回的所有 token 种类的声明
@@ -45,9 +46,10 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp UnaryExp
+%type <ast_val> FuncDef FuncType Block Stmt
 %type <int_val> Number
 %type <unary_op_kind> UnaryOp
+%type <exp_ast_val> Exp PrimaryExp UnaryExp
 
 %%
 
@@ -108,7 +110,7 @@ Block
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->exp = unique_ptr<BaseAST>($2);
+    ast->exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
   ;
@@ -117,7 +119,7 @@ Stmt
 Exp
   : UnaryExp {
     auto ast = new ExpAST();
-    ast->unary_exp = unique_ptr<BaseAST>($1);
+    ast->unary_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   ;
@@ -127,14 +129,14 @@ UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
     ast->kind = UnaryExpAST::Kind::PRIMARY_EXP;
-    ast->primary_exp = unique_ptr<BaseAST>($1);
+    ast->primary_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | UnaryOp UnaryExp {
     auto ast = new UnaryExpAST();
     ast->kind = UnaryExpAST::Kind::UNARY_OP_EXP;
     ast->unary_op = $1;
-    ast->unary_exp = unique_ptr<BaseAST>($2);
+    ast->unary_exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
   ;
@@ -144,7 +146,7 @@ PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
     ast->kind = PrimaryExpAST::Kind::EXP;
-    ast->exp = unique_ptr<BaseAST>($2);
+    ast->exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
   | Number {

@@ -38,9 +38,6 @@ public:
   virtual ~BaseAST() = default;
   virtual void Dump() const = 0;
   virtual void print(std::ostream &os) {};
-  virtual int get_reg() const { return -1; }
-  virtual bool is_number() const { return false; }
-  virtual int get_number() const { return -1; }
   friend std::ostream &operator<<(std::ostream &os, BaseAST &ast);
 };
 
@@ -76,58 +73,40 @@ public:
 
 class StmtAST : public BaseAST {
 public:
-  std::unique_ptr<BaseAST> exp;
+  std::unique_ptr<ExpAST> exp;
   void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class ExpAST : public BaseAST {
 public:
-  enum Kind { EXP, NUMBER };
+  enum Kind { EXP, NUMBER, PRIMARY_EXP, UNARY_OP_EXP, UNARY_OP };
   Kind kind;
   int number;
-  std::unique_ptr<BaseAST> unary_exp;
+  std::unique_ptr<ExpAST> unary_exp;
   void Dump() const override;
   void print(std::ostream &os) override;
-  int get_reg() const override { return reg; }
-  bool is_number() const override { return kind == Kind::NUMBER; }
-  int get_number() const override { return number; }
+  int get_reg() const  { return reg; }
+  bool is_number() const { return kind == Kind::NUMBER; }
+  int get_number() const { return number; }
 
 protected:
   int reg = -1;
 };
 
-class PrimaryExpAST : public BaseAST {
+class PrimaryExpAST : public ExpAST {
 public:
-  enum Kind { EXP, NUMBER };
-  Kind kind;
-  std::unique_ptr<BaseAST> exp;
-  int number;
+  std::unique_ptr<ExpAST> exp;
   void Dump() const override;
   void print(std::ostream &os) override;
-  int get_reg() const override { return reg; }
-  bool is_number() const override { return kind == Kind::NUMBER; }
-  int get_number() const override { return number; }
-
-protected:
-  int reg = -1;
 };
 
-class UnaryExpAST : public BaseAST {
+class UnaryExpAST : public ExpAST {
 public:
-  enum Kind { PRIMARY_EXP, UNARY_OP_EXP, NUMBER };
-  Kind kind;
-  std::unique_ptr<BaseAST> primary_exp, unary_exp;
-  int number;
+  std::unique_ptr<ExpAST> primary_exp, unary_exp;
   UnaryOpKind unary_op;
   void Dump() const override;
   void print(std::ostream &os) override;
-  int get_reg() const override { return reg; }
-  bool is_number() const override { return kind == Kind::NUMBER; }
-  int get_number() const override { return number; }
-
-protected:
-  int reg = -1;
 };
 
 #endif // AST_H
