@@ -3,10 +3,21 @@
 #include "koopa.h"
 #include <string>
 
+int AddrManager::getNextId() {
+  return id_counter++;
+}
+
+std::string AddrManager::idToAddr(int id) {
+  if (id_addr_map.find(id) == id_addr_map.end()) {
+    id_addr_map[id] = getReg();
+  }
+  return id_addr_map[id];
+}
+
 std::string AddrManager::getReg() {
-  auto reg = used_regs.begin();
+  auto reg = regs.begin();
   std::string reg_str = *reg;
-  used_regs.erase(reg);
+  regs.erase(reg);
   return reg_str;
 }
 
@@ -14,14 +25,18 @@ void AddrManager::freeReg(const std::string &reg) {
   if (reg == "x0") {
     return;
   }
-  used_regs.insert(reg);
+  regs.insert(reg);
 }
 
 std::string AddrManager::getAddr(const koopa_raw_binary_t &binary) {
-  if (raw_bin_addr_map.find(&binary) == raw_bin_addr_map.end()) {
-    raw_bin_addr_map[&binary] = getReg();
+  int id;
+  if (raw_bin_id_map.find(&binary) == raw_bin_id_map.end()) {
+    id = getNextId();
+    raw_bin_id_map[&binary] = id;
+  } else {
+    id = raw_bin_id_map[&binary];
   }
-  return raw_bin_addr_map[&binary];
+  return idToAddr(id);
 }
 
 std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
@@ -32,10 +47,15 @@ std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
   if (value->kind.tag == KOOPA_RVT_BINARY) {
     return getAddr(value->kind.data.binary);
   }
-  if (raw_val_addr_map.find(&value) == raw_val_addr_map.end()) {
-    raw_val_addr_map[&value] = getReg();
+  
+  int id;
+  if (raw_val_id_map.find(&value) == raw_val_id_map.end()) {
+    id = getNextId();
+    raw_val_id_map[&value] = id;
+  } else {
+    id = raw_val_id_map[&value];
   }
-  return raw_val_addr_map[&value];
+  return idToAddr(id);
 }
 
 CodeGen::CodeGen(const std::string &koopa_ir) {

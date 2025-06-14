@@ -2,7 +2,6 @@
 #pragma once
 
 #include <cassert>
-#include <iostream>
 #include <set>
 #include <sstream>
 #include <unordered_map>
@@ -17,9 +16,21 @@ public:
 
 private:
   std::string getReg();
-  std::unordered_map<const koopa_raw_binary_t *, std::string> raw_bin_addr_map;
-  std::unordered_map<const koopa_raw_value_t *, std::string> raw_val_addr_map;
-  std::set<std::string> used_regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
+  int getNextId();
+  std::string idToAddr(int id);
+
+  // 对象到id的映射
+  std::unordered_map<const koopa_raw_binary_t *, int> raw_bin_id_map;
+  std::unordered_map<const koopa_raw_value_t *, int> raw_val_id_map;
+
+  // id到地址的映射
+  std::unordered_map<int, std::string> id_addr_map;
+
+  // 可用的寄存器集合
+  std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
+
+  // id计数器
+  int id_counter = 0;
 };
 
 class CodeGen {
