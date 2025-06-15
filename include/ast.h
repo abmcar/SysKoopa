@@ -6,7 +6,11 @@
 #include <memory>
 #include <string>
 
+#include "util.h"
+
 enum class UnaryOpKind { Plus, Minus, Not };
+enum class AddOpKind { Plus, Minus, Mul };
+enum class MulOpKind { Mul, Div, Mod, Unary };
 
 class BaseAST;
 class CompUnitAST;
@@ -80,13 +84,22 @@ public:
 
 class ExpAST : public BaseAST {
 public:
-  enum Kind { EXP, NUMBER, PRIMARY_EXP, UNARY_OP_EXP, UNARY_OP };
+  enum Kind {
+    EXP,
+    NUMBER,
+    PRIMARY_EXP,
+    UNARY_OP_EXP,
+    UNARY_OP,
+    ADD_OP,
+    MUL_OP
+  };
   Kind kind;
   int number;
   std::unique_ptr<ExpAST> unary_exp;
+  std::unique_ptr<ExpAST> add_exp;
   void Dump() const override;
   void print(std::ostream &os) override;
-  int get_reg() const  { return reg; }
+  int get_reg() const { return reg; }
   bool is_number() const { return kind == Kind::NUMBER; }
   int get_number() const { return number; }
 
@@ -105,6 +118,22 @@ class UnaryExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> primary_exp, unary_exp;
   UnaryOpKind unary_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class AddExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> add_exp, mul_exp;
+  AddOpKind add_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class MulExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> mul_exp, unary_exp;
+  MulOpKind mul_op;
   void Dump() const override;
   void print(std::ostream &os) override;
 };

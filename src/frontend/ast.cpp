@@ -32,7 +32,7 @@ void StmtAST::Dump() const {
 
 void ExpAST::Dump() const {
   std::cout << "ExpAST { ";
-  unary_exp->Dump();
+  add_exp->Dump();
   std::cout << " }";
 }
 
@@ -58,6 +58,40 @@ void UnaryExpAST::Dump() const {
       std::cout << "-, ";
     } else if (unary_op == UnaryOpKind::Not) {
       std::cout << "!, ";
+    }
+    unary_exp->Dump();
+  }
+  std::cout << " }";
+}
+
+void AddExpAST::Dump() const {
+  std::cout << "AddExpAST { ";
+  if (add_op == AddOpKind::Mul) {
+    mul_exp->Dump();
+  } else {
+    add_exp->Dump();
+    if (add_op == AddOpKind::Plus) {
+      std::cout << "+, ";
+    } else if (add_op == AddOpKind::Minus) {
+      std::cout << "-, ";
+    }
+    mul_exp->Dump();
+  }
+  std::cout << " }";
+}
+
+void MulExpAST::Dump() const {
+  std::cout << "MulExpAST { ";
+  if (mul_op == MulOpKind::Unary) {
+    unary_exp->Dump();
+  } else {
+    mul_exp->Dump();
+    if (mul_op == MulOpKind::Mul) {
+      std::cout << "*, ";
+    } else if (mul_op == MulOpKind::Div) {
+      std::cout << "/, ";
+    } else if (mul_op == MulOpKind::Mod) {
+      std::cout << "%, ";
     }
     unary_exp->Dump();
   }
@@ -92,21 +126,23 @@ void BlockAST::print(std::ostream &os) {
 
 void StmtAST::print(std::ostream &os) {
   exp->print(os);
-  int exp_reg = exp->get_reg();
-  if (exp->is_number()) {
-    os << "  ret " << exp->get_number() << "\n";
-  } else {
-    os << "  ret %" << exp_reg << "\n";
-  }
+  os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
 }
 
 void ExpAST::print(std::ostream &os) {
-  unary_exp->print(os);
-  if (unary_exp->is_number()) {
-    number = unary_exp->get_number();
+  // unary_exp->print(os);
+  // if (unary_exp->is_number()) {
+  //   number = unary_exp->get_number();
+  //   kind = ExpAST::Kind::NUMBER;
+  // } else {
+  //   reg = unary_exp->get_reg();
+  // }
+  add_exp->print(os);
+  if (add_exp->is_number()) {
+    number = add_exp->get_number();
     kind = ExpAST::Kind::NUMBER;
   } else {
-    reg = unary_exp->get_reg();
+    reg = add_exp->get_reg();
   }
 }
 
@@ -142,20 +178,64 @@ void UnaryExpAST::print(std::ostream &os) {
       break;
     case UnaryOpKind::Minus:
       reg = IRGenerator::getInstance().getNextReg();
-      if (unary_exp->is_number()) {
-        os << "  %" << reg << " = sub 0, " << unary_exp->get_number() << "\n";
-      } else {
-        os << "  %" << reg << " = sub 0, %" << unary_exp_reg << "\n";
-      }
+      os << "  %" << reg << " = sub 0, " << get_koopa_exp_reg(unary_exp.get())
+         << "\n";
       break;
     case UnaryOpKind::Not:
       reg = IRGenerator::getInstance().getNextReg();
-      if (unary_exp->is_number()) {
-        os << "  %" << reg << " = eq " << unary_exp->get_number() << ", 0\n";
-      } else {
-        os << "  %" << reg << " = eq %" << unary_exp_reg << ", 0\n";
-      }
+      os << "  %" << reg << " = eq " << get_koopa_exp_reg(unary_exp.get())
+         << ", 0\n";
       break;
+    }
+  }
+}
+
+void AddExpAST::print(std::ostream &os) {
+  if (add_op == AddOpKind::Mul) {
+    mul_exp->print(os);
+    if (mul_exp->is_number()) {
+      number = mul_exp->get_number();
+      kind = ExpAST::Kind::NUMBER;
+    } else {
+      reg = mul_exp->get_reg();
+    }
+  } else {
+    mul_exp->print(os);
+    add_exp->print(os);
+    reg = IRGenerator::getInstance().getNextReg();
+
+    if (add_op == AddOpKind::Plus) {
+      os << "  %" << reg << " = add " << get_koopa_exp_reg(add_exp.get())
+         << ", " << get_koopa_exp_reg(mul_exp.get()) << "\n";
+    } else if (add_op == AddOpKind::Minus) {
+      os << "  %" << reg << " = sub " << get_koopa_exp_reg(add_exp.get())
+         << ", " << get_koopa_exp_reg(mul_exp.get()) << "\n";
+    }
+  }
+}
+
+void MulExpAST::print(std::ostream &os) {
+  if (mul_op == MulOpKind::Unary) {
+    unary_exp->print(os);
+    if (unary_exp->is_number()) {
+      number = unary_exp->get_number();
+      kind = ExpAST::Kind::NUMBER;
+    } else {
+      reg = unary_exp->get_reg();
+    }
+  } else {
+    mul_exp->print(os);
+    unary_exp->print(os);
+    reg = IRGenerator::getInstance().getNextReg();
+    if (mul_op == MulOpKind::Mul) {
+      os << "  %" << reg << " = mul " << get_koopa_exp_reg(mul_exp.get())
+         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
+    } else if (mul_op == MulOpKind::Div) {
+      os << "  %" << reg << " = div " << get_koopa_exp_reg(mul_exp.get())
+         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
+    } else if (mul_op == MulOpKind::Mod) {
+      os << "  %" << reg << " = mod " << get_koopa_exp_reg(mul_exp.get())
+         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
     }
   }
 }

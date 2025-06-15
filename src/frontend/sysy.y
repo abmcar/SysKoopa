@@ -49,7 +49,7 @@ using namespace std;
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <int_val> Number
 %type <unary_op_kind> UnaryOp
-%type <exp_ast_val> Exp PrimaryExp UnaryExp
+%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp
 
 %%
 
@@ -115,11 +115,11 @@ Stmt
   }
   ;
 
-// Exp ::= UnaryExp;
+// Exp ::= AddExp;
 Exp
-  : UnaryExp {
+  : AddExp {
     auto ast = new ExpAST();
-    ast->unary_exp = unique_ptr<ExpAST>($1);
+    ast->add_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   ;
@@ -169,6 +169,62 @@ UnaryOp
     $$ = UnaryOpKind::Not;
   }
 ;
+
+// AddExp ::= MulExp | AddExp ("+" | "-") MulExp;
+AddExp
+  : MulExp {
+    auto ast = new AddExpAST();
+    ast->add_op = AddOpKind::Mul;
+    ast->mul_exp = unique_ptr<ExpAST>($1);
+    $$ = ast;
+  }
+  | AddExp '+' MulExp {
+    auto ast = new AddExpAST();
+    ast->add_exp = unique_ptr<ExpAST>($1);
+    ast->add_op = AddOpKind::Plus;
+    ast->mul_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | AddExp '-' MulExp { 
+    auto ast = new AddExpAST();
+    ast->add_exp = unique_ptr<ExpAST>($1);
+    ast->add_op = AddOpKind::Minus;
+    ast->mul_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
+
+// MulExp ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+MulExp
+  : UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mul_op = MulOpKind::Unary;
+    ast->unary_exp = unique_ptr<ExpAST>($1);
+    $$ = ast;
+  }
+  | MulExp '*' UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mul_exp = unique_ptr<ExpAST>($1);
+    ast->mul_op = MulOpKind::Mul;
+    ast->unary_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | MulExp '/' UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mul_exp = unique_ptr<ExpAST>($1);
+    ast->mul_op = MulOpKind::Div;
+    ast->unary_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | MulExp '%' UnaryExp { 
+    auto ast = new MulExpAST();
+    ast->mul_exp = unique_ptr<ExpAST>($1);
+    ast->mul_op = MulOpKind::Mod;
+    ast->unary_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
+
 
 Number
   : INT_CONST {
