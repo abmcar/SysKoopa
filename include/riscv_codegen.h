@@ -2,9 +2,11 @@
 #pragma once
 
 #include <cassert>
+#include <iostream>
 #include <set>
 #include <sstream>
 #include <unordered_map>
+
 
 #include "koopa.h"
 

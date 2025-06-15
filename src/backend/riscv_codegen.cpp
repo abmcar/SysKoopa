@@ -1,9 +1,7 @@
 // riscv_codegen.cpp
 #include "riscv_codegen.h"
 
-int AddrManager::getNextId() {
-  return id_counter++;
-}
+int AddrManager::getNextId() { return id_counter++; }
 
 std::string AddrManager::idToAddr(int id) {
   if (id_addr_map.find(id) == id_addr_map.end()) {
@@ -45,7 +43,7 @@ std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
   if (value->kind.tag == KOOPA_RVT_BINARY) {
     return getAddr(value->kind.data.binary);
   }
-  
+
   int id;
   if (raw_val_id_map.find(&value) == raw_val_id_map.end()) {
     id = getNextId();
@@ -148,6 +146,7 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     break;
   default:
     // 其他类型暂时遇不到
+    std::cerr << "Unknown instruction: " << kind.tag << std::endl;
     assert(false);
   }
 }
@@ -185,7 +184,20 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     oss << "  xor " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
     oss << "  seqz " << res_addr << ", " << res_addr << "\n";
     break;
+  case KOOPA_RBO_ADD:
+    oss << "  add " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_MUL:
+    oss << "  mul " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_DIV:
+    oss << "  div " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_MOD:
+    oss << "  rem " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
   default:
+    std::cerr << "Unknown binary operation: " << binary.op << std::endl;
     assert(false);
   }
 }
