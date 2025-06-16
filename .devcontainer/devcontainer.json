@@ -3,8 +3,7 @@
   "image": "maxxing/compiler-dev",
   "workspaceFolder": "/workspace",
   "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind",
-    "source=vscode_server_cache,target=/root/.vscode-server,type=volume"
+    "source=${localWorkspaceFolder},target=/workspace,type=bind"
   ],
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash"
@@ -12,13 +11,18 @@
   "remoteUser": "root",
   "runArgs": [
     "--rm",
-    "--name",
-    "SysKoopa-Dev"
+    "--name=SysKoopa-Dev"
   ],
   "extensions": [
     "ms-vscode.cmake-tools",
     "llvm-vs-code-extensions.vscode-clangd",
     "vadimcn.vscode-lldb",
     "daohong-emilio.yash"
+  ],
+  "capAdd": [
+    "SYS_PTRACE"
+  ],
+  "securityOpt": [
+    "seccomp=unconfined"
   ]
 }
