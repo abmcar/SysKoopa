@@ -13,16 +13,6 @@ enum class AddOpKind { Plus, Minus};
 enum class MulOpKind { Mul, Div, Mod};
 enum class LogicalOpKind { Or, And, Equal, NotEqual, Greater, Less, GreaterEqual, LessEqual};
 
-class BaseAST;
-class CompUnitAST;
-class FuncDefAST;
-class FuncTypeAST;
-class BlockAST;
-class StmtAST;
-class ExpAST;
-class UnaryExpAST;
-class PrimaryExpAST;
-
 class IRGenerator {
 public:
   static IRGenerator &getInstance() {
@@ -76,6 +66,8 @@ public:
   void print(std::ostream &os) override;
 };
 
+class ExpAST;
+
 class StmtAST : public BaseAST {
 public:
   std::unique_ptr<ExpAST> exp;
@@ -90,9 +82,6 @@ public:
     NUMBER,
     PRIMARY_EXP,
     UNARY_OP_EXP,
-    UNARY_OP,
-    ADD_OP,
-    MUL_OP,
     REL_EXP,
     ADD_EXP,
     EQ_EXP,
@@ -103,8 +92,6 @@ public:
   };
   Kind kind;
   int number;
-  std::unique_ptr<ExpAST> unary_exp;
-  std::unique_ptr<ExpAST> add_exp;
   std::unique_ptr<ExpAST> l_or_exp;
   void Dump() const override;
   void print(std::ostream &os) override;
