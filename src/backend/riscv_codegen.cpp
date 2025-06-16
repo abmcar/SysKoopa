@@ -1,5 +1,7 @@
 // riscv_codegen.cpp
 #include "riscv_codegen.h"
+#include <cassert>
+#include <iostream>
 
 int AddrManager::getNextId() { return id_counter++; }
 
@@ -178,7 +180,8 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     oss << "  sub " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
     break;
   case KOOPA_RBO_NOT_EQ:
-
+    oss << "  xor " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    oss << "  snez " << res_addr << ", " << res_addr << "\n";
     break;
   case KOOPA_RBO_EQ:
     oss << "  xor " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
@@ -195,6 +198,26 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     break;
   case KOOPA_RBO_MOD:
     oss << "  rem " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_AND:
+    oss << "  and " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_OR:
+    oss << "  or " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_GT:
+    oss << "  sgt " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_LT:
+    oss << "  slt " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    break;
+  case KOOPA_RBO_GE:
+    oss << "  slt " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    oss << "  xori " << res_addr << ", " << res_addr << ", 1\n";
+    break;
+  case KOOPA_RBO_LE:
+    oss << "  sgt " << res_addr << ", " << lhs_addr << ", " << rhs_addr << "\n";
+    oss << "  xori " << res_addr << ", " << res_addr << ", 1\n";
     break;
   default:
     std::cerr << "Unknown binary operation: " << binary.op << std::endl;

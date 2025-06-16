@@ -29,7 +29,7 @@ private:
   std::unordered_map<int, std::string> id_addr_map;
 
   // 可用的寄存器集合
-  std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
+  std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 
   // id计数器
   int id_counter = 0;
