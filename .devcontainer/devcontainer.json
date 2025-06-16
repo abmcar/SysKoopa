@@ -14,5 +14,11 @@
     "--rm",
     "--name",
     "SysKoopa-Dev"
+  ],
+  "extensions": [
+    "ms-vscode.cmake-tools",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "vadimcn.vscode-lldb",
+    "daohong-emilio.yash"
   ]
 }
