@@ -28,6 +28,8 @@ Decimal       [1-9][0-9]*
 Octal         0[0-7]*
 Hexadecimal   0[xX][0-9a-fA-F]+
 
+LogicalOperator   (?:>=|<=|==|!=|&&|\|\||[<>])
+
 %%
 
 {WhiteSpace}    { /* 忽略, 不做任何操作 */ }
@@ -42,6 +44,29 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 {Decimal}       { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Octal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+
+{LogicalOperator} {
+    std::string op = yytext;
+    if (op == ">=") {
+        return LOGICAL_OP_GREATER_EQUAL;
+    } else if (op == "<=") {
+        return LOGICAL_OP_LESS_EQUAL;
+    } else if (op == "==") {
+        return LOGICAL_OP_EQUAL;
+    } else if (op == "!=") {
+        return LOGICAL_OP_NOT_EQUAL;
+    } else if (op == "||") {
+        return LOGICAL_OP_OR;
+    } else if (op == "&&") {
+        return LOGICAL_OP_AND;
+    } else if (op == ">") {
+        return LOGICAL_OP_GREATER;
+    } else if (op == "<") {
+        return LOGICAL_OP_LESS;
+    } else {
+        assert(false);
+    }
+}   
 
 .               { return yytext[0]; }
 

@@ -42,14 +42,15 @@ using namespace std;
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
 %token INT RETURN
-%token <str_val> IDENT
+%token <str_val> IDENT 
 %token <int_val> INT_CONST
+%token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <int_val> Number
 %type <unary_op_kind> UnaryOp
-%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp
+%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp
 
 %%
 
@@ -115,11 +116,11 @@ Stmt
   }
   ;
 
-// Exp ::= AddExp;
+// Exp ::= LOrExp;
 Exp
-  : AddExp {
+  : LOrExp {
     auto ast = new ExpAST();
-    ast->add_exp = unique_ptr<ExpAST>($1);
+    ast->l_or_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   ;
@@ -128,13 +129,13 @@ Exp
 UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
-    ast->kind = UnaryExpAST::Kind::PRIMARY_EXP;
+    ast->kind = ExpAST::Kind::PRIMARY_EXP;
     ast->primary_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | UnaryOp UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->kind = UnaryExpAST::Kind::UNARY_OP_EXP;
+    ast->kind = ExpAST::Kind::UNARY_OP_EXP;
     ast->unary_op = $1;
     ast->unary_exp = unique_ptr<ExpAST>($2);
     $$ = ast;
@@ -145,13 +146,13 @@ UnaryExp
 PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
-    ast->kind = PrimaryExpAST::Kind::EXP;
+    ast->kind = ExpAST::Kind::EXP;
     ast->exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
   | Number {
     auto ast = new PrimaryExpAST();
-    ast->kind = PrimaryExpAST::Kind::NUMBER;
+    ast->kind = ExpAST::Kind::NUMBER;
     ast->number = $1;
     $$ = ast;
   }
@@ -174,7 +175,7 @@ UnaryOp
 AddExp
   : MulExp {
     auto ast = new AddExpAST();
-    ast->add_op = AddOpKind::Mul;
+    ast->kind = ExpAST::Kind::MUL_EXP;
     ast->mul_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
@@ -198,7 +199,7 @@ AddExp
 MulExp
   : UnaryExp {
     auto ast = new MulExpAST();
-    ast->mul_op = MulOpKind::Unary;
+    ast->kind = ExpAST::Kind::UNARY_EXP;
     ast->unary_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
@@ -225,6 +226,101 @@ MulExp
   }
   ;
 
+// LOrExp ::= LAndExp | LOrExp "||" LAndExp;
+LOrExp
+  : LAndExp {
+    auto ast = new LOrExpAST();
+    ast->l_and_exp = unique_ptr<ExpAST>($1);
+    ast->kind = ExpAST::Kind::L_AND_EXP;
+    $$ = ast;
+  }
+  | LOrExp LOGICAL_OP_OR LAndExp {
+    auto ast = new LOrExpAST();
+    ast->l_or_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::Or;
+    ast->l_and_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
+
+// LAndExp ::= EqExp | LAndExp "&&" EqExp;
+LAndExp
+  : EqExp {
+    auto ast = new LAndExpAST();
+    ast->eq_exp = unique_ptr<ExpAST>($1);
+    ast->kind = ExpAST::Kind::EQ_EXP;
+    $$ = ast;
+  }
+  | LAndExp LOGICAL_OP_AND EqExp {
+    auto ast = new LAndExpAST();
+    ast->l_and_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::And;
+    ast->eq_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
+
+// EqExp ::= RelExp | EqExp "==" RelExp | EqExp "!=" RelExp;
+EqExp
+  : RelExp {
+    auto ast = new EqExpAST();
+    ast->rel_exp = unique_ptr<ExpAST>($1);
+    ast->kind = ExpAST::Kind::REL_EXP;
+    $$ = ast;
+  }
+  | EqExp LOGICAL_OP_EQUAL RelExp {
+    auto ast = new EqExpAST();
+    ast->eq_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::Equal;
+    ast->rel_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | EqExp LOGICAL_OP_NOT_EQUAL RelExp {
+    auto ast = new EqExpAST();
+    ast->eq_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::NotEqual;
+    ast->rel_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
+
+// RelExp ::= AddExp | RelExp (">" | "<" | ">=" | "<=") AddExp;
+RelExp
+  : AddExp {
+    auto ast = new RelExpAST();
+    ast->add_exp = unique_ptr<ExpAST>($1);
+    ast->kind = ExpAST::Kind::ADD_EXP;
+    $$ = ast;
+  }
+  | RelExp LOGICAL_OP_GREATER AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::Greater; 
+    ast->add_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | RelExp LOGICAL_OP_LESS AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::Less;
+    ast->add_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | RelExp LOGICAL_OP_GREATER_EQUAL AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::GreaterEqual;
+    ast->add_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  | RelExp LOGICAL_OP_LESS_EQUAL AddExp {
+    auto ast = new RelExpAST();
+    ast->rel_exp = unique_ptr<ExpAST>($1);
+    ast->logical_op = LogicalOpKind::LessEqual;
+    ast->add_exp = unique_ptr<ExpAST>($3);
+    $$ = ast;
+  }
+  ;
 
 Number
   : INT_CONST {
@@ -242,4 +338,5 @@ void yyerror(unique_ptr<string> &ast, const char *s) {
 
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
   cerr << "error: " << s << endl;
+  ast->Dump();
 }

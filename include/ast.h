@@ -9,8 +9,9 @@
 #include "util.h"
 
 enum class UnaryOpKind { Plus, Minus, Not };
-enum class AddOpKind { Plus, Minus, Mul };
-enum class MulOpKind { Mul, Div, Mod, Unary };
+enum class AddOpKind { Plus, Minus};
+enum class MulOpKind { Mul, Div, Mod};
+enum class LogicalOpKind { Or, And, Equal, NotEqual, Greater, Less, GreaterEqual, LessEqual};
 
 class BaseAST;
 class CompUnitAST;
@@ -91,17 +92,26 @@ public:
     UNARY_OP_EXP,
     UNARY_OP,
     ADD_OP,
-    MUL_OP
+    MUL_OP,
+    REL_EXP,
+    ADD_EXP,
+    EQ_EXP,
+    L_AND_EXP,
+    L_OR_EXP,
+    MUL_EXP,
+    UNARY_EXP
   };
   Kind kind;
   int number;
   std::unique_ptr<ExpAST> unary_exp;
   std::unique_ptr<ExpAST> add_exp;
+  std::unique_ptr<ExpAST> l_or_exp;
   void Dump() const override;
   void print(std::ostream &os) override;
   int get_reg() const { return reg; }
   bool is_number() const { return kind == Kind::NUMBER; }
   int get_number() const { return number; }
+  void set_reg(int reg) { this->reg = reg; }
 
 protected:
   int reg = -1;
@@ -134,6 +144,38 @@ class MulExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> mul_exp, unary_exp;
   MulOpKind mul_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class LOrExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> l_or_exp, l_and_exp;
+  LogicalOpKind logical_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class LAndExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> l_and_exp, eq_exp;
+  LogicalOpKind logical_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class EqExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> eq_exp, rel_exp;
+  LogicalOpKind logical_op;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class RelExpAST : public ExpAST {
+public:
+  std::unique_ptr<ExpAST> rel_exp, add_exp;
+  LogicalOpKind logical_op;
   void Dump() const override;
   void print(std::ostream &os) override;
 };
