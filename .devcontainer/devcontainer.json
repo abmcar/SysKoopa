@@ -1,6 +1,6 @@
 {
   "name": "compiler-dev",
-  "image": "maxxing/compiler-dev",
+  "image": "abmcar/compiler-dev",
   "workspaceFolder": "/workspace",
   "mounts": [
     "source=${localWorkspaceFolder},target=/workspace,type=bind"
