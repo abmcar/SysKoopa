@@ -1,3 +1,5 @@
+%debug
+
 %code requires {
   #include <memory>
   #include <string>
@@ -37,21 +39,23 @@ using namespace std;
   UnaryOpKind unary_op_kind;
   BaseAST *ast_val;
   ExpAST *exp_ast_val;
+  std::vector<std::unique_ptr<BaseAST>> *ast_vec_val;
 }
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN
-%token <str_val> IDENT 
+%token INT RETURN CONST 
+%token <str_val> IDENT
 %token <int_val> INT_CONST
 %token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
-%type <int_val> Number
+%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDef ConstDecl
+%type <int_val> Number ConstInitVal
+%type <str_val> BType LVal
 %type <unary_op_kind> UnaryOp
-%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp
-
+%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp
+%type <ast_vec_val> ConstDefList BlockItemList
 %%
 
 // 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
@@ -98,11 +102,109 @@ FuncType
   }
   ;
 
-// Block ::= "{" Stmt "}";
+// Decl ::= ConstDecl
+Decl
+  : ConstDecl {
+    auto ast = new DeclAST();
+    ast->const_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+// ConstDecl ::= "const" Btype ConstDef {"," ConstDef} ";";
+// ConstDecl ::= "const" Btype ConstDefList ";";
+ConstDecl
+  : CONST BType ConstDefList ';' {
+    auto ast = new ConstDeclAST();
+    ast->b_type = *unique_ptr<string>($2);
+    ast->const_def_list = $3;
+    for (auto &item : *$3) {
+      SymbolTable::getInstance().type_map[item.get()] = ast->b_type;
+    }
+    $$ = ast;
+  }
+  ;
+
+// BType ::= "int";
+BType
+  : INT {
+    $$ = new std::string("int");
+  }
+  ;
+
+// ConstDefList ::= ConstDef {"," ConstDef};
+ConstDefList
+  : ConstDef {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  | ConstDef ',' ConstDefList {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    for (auto &item : *$3) {
+      vec->push_back(move(item));
+    }
+    $$ = vec;
+  }
+  ;
+
+// ConstDef ::= IDENT "=" ConstInitVal;
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new ConstDefAST();
+    ast->ident = *unique_ptr<string>($1);
+    ast->const_init_val = $3;
+    SymbolTable::getInstance().val_map[ast->ident] = ast->const_init_val;
+    $$ = ast;
+  }
+  ;
+
+// ConstInitVal ::= ConstExp;
+ConstInitVal
+  : ConstExp {
+    $$ = $1->calc_number();
+  }
+  ;
+
+// Block ::= "{" {BlockItem} "}";
 Block
-  : '{' Stmt '}' {
+  : '{' BlockItemList '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    ast->block_item_list = $2;
+    $$ = ast;
+  }
+  ;
+
+// BlockItemList ::= BlockItem | BlockItem BlockItemList;
+BlockItemList
+  : BlockItem {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  | BlockItem BlockItemList {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    for (auto &item : *$2) {
+      vec->push_back(move(item));
+    }
+    $$ = vec;
+  }
+  ;
+
+// BlockItem ::= Decl | Stmt;
+BlockItem
+  : Decl {
+    auto ast = new BlockItemAST();
+    ast->kind = BlockItemAST::Kind::DECL;
+    ast->decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Stmt {
+    auto ast = new BlockItemAST();
+    ast->kind = BlockItemAST::Kind::STMT;
+    ast->stmt = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -120,6 +222,7 @@ Stmt
 Exp
   : LOrExp {
     auto ast = new ExpAST();
+    ast->kind = ExpAST::Kind::L_OR_EXP;
     ast->l_or_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
@@ -142,7 +245,7 @@ UnaryExp
   }
   ;
 
-// PrimaryExp ::= "(" Exp ")" | Number;
+// PrimaryExp ::= "(" Exp ")" | LVal | Number;
 PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
@@ -150,11 +253,23 @@ PrimaryExp
     ast->exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
+  | LVal {
+    auto ast = new PrimaryExpAST();
+    ast->kind = ExpAST::Kind::L_VAL;
+    ast->l_val = *unique_ptr<string>($1);
+    $$ = ast;
+  }
   | Number {
     auto ast = new PrimaryExpAST();
     ast->kind = ExpAST::Kind::NUMBER;
     ast->number = $1;
     $$ = ast;
+  }
+  ;
+
+LVal
+  : IDENT {
+    $$ = $1;
   }
   ;
 
@@ -230,12 +345,13 @@ MulExp
 LOrExp
   : LAndExp {
     auto ast = new LOrExpAST();
-    ast->l_and_exp = unique_ptr<ExpAST>($1);
     ast->kind = ExpAST::Kind::L_AND_EXP;
+    ast->l_and_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | LOrExp LOGICAL_OP_OR LAndExp {
     auto ast = new LOrExpAST();
+    ast->kind = ExpAST::Kind::L_OR_EXP;
     ast->l_or_exp = unique_ptr<ExpAST>($1);
     ast->logical_op = LogicalOpKind::Or;
     ast->l_and_exp = unique_ptr<ExpAST>($3);
@@ -247,12 +363,13 @@ LOrExp
 LAndExp
   : EqExp {
     auto ast = new LAndExpAST();
-    ast->eq_exp = unique_ptr<ExpAST>($1);
     ast->kind = ExpAST::Kind::EQ_EXP;
+    ast->eq_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | LAndExp LOGICAL_OP_AND EqExp {
     auto ast = new LAndExpAST();
+    ast->kind = ExpAST::Kind::L_AND_EXP;
     ast->l_and_exp = unique_ptr<ExpAST>($1);
     ast->logical_op = LogicalOpKind::And;
     ast->eq_exp = unique_ptr<ExpAST>($3);
@@ -264,8 +381,8 @@ LAndExp
 EqExp
   : RelExp {
     auto ast = new EqExpAST();
-    ast->rel_exp = unique_ptr<ExpAST>($1);
     ast->kind = ExpAST::Kind::REL_EXP;
+    ast->rel_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | EqExp LOGICAL_OP_EQUAL RelExp {
@@ -288,8 +405,8 @@ EqExp
 RelExp
   : AddExp {
     auto ast = new RelExpAST();
-    ast->add_exp = unique_ptr<ExpAST>($1);
     ast->kind = ExpAST::Kind::ADD_EXP;
+    ast->add_exp = unique_ptr<ExpAST>($1);
     $$ = ast;
   }
   | RelExp LOGICAL_OP_GREATER AddExp {
@@ -322,6 +439,13 @@ RelExp
   }
   ;
 
+// ConstExp ::= Exp;
+ConstExp
+  : Exp {
+    $$ = $1;
+  }
+  ;
+
 Number
   : INT_CONST {
     $$ = $1;
@@ -332,11 +456,7 @@ Number
 
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
-void yyerror(unique_ptr<string> &ast, const char *s) {
-  cerr << "error: " << s << endl;
-}
-
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
   cerr << "error: " << s << endl;
-  ast->Dump();
+  /* ast->Dump(); */
 }

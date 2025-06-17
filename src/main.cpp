@@ -6,20 +6,24 @@
 #include <string>
 
 #include "ast.h"
-#include "util.h"
 #include "riscv_codegen.h"
+#include "util.h"
 
 using namespace std;
 
 extern FILE *yyin;
 extern int yyparse(unique_ptr<BaseAST> &ast);
+extern int yydebug;
 
 int main(int argc, const char *argv[]) {
   // compiler 模式 输入文件 -o 输出文件
-  assert(argc == 5);
+  assert(argc == 5 or argc == 6);
   auto mode = argv[1];
   auto input = argv[2];
   auto output = argv[4];
+  if (argc == 6 and string(argv[5]) == "-debug") {
+    yydebug = 1;
+  }
 
   yyin = fopen(input, "r");
   assert(yyin);

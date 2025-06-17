@@ -8,8 +8,6 @@
 #include <sstream>
 #include <string>
 
-#include "ast.h"
-
 class ExpAST;
 
 void write_file(std::string file_name, std::string file_content);
