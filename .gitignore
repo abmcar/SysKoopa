@@ -5,4 +5,5 @@ hello.c
 hello.s
 .vscode
 .cache
+.clangd
 compile_commands.json
