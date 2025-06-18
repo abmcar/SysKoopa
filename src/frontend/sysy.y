@@ -39,7 +39,9 @@ using namespace std;
   UnaryOpKind unary_op_kind;
   BaseAST *ast_val;
   ExpAST *exp_ast_val;
+  DefAST *def_ast_val;
   std::vector<std::unique_ptr<BaseAST>> *ast_vec_val;
+  std::vector<std::unique_ptr<DefAST>> *def_ast_vec_val;
 }
 
 // lexer 返回的所有 token 种类的声明
@@ -50,12 +52,14 @@ using namespace std;
 %token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDef ConstDecl
+%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDecl
 %type <int_val> Number ConstInitVal
 %type <str_val> BType LVal
 %type <unary_op_kind> UnaryOp
 %type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp
-%type <ast_vec_val> ConstDefList BlockItemList
+%type <ast_vec_val> BlockItemList
+%type <def_ast_val> ConstDef 
+%type <def_ast_vec_val> ConstDefList
 %%
 
 // 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
@@ -119,7 +123,7 @@ ConstDecl
     ast->b_type = *unique_ptr<string>($2);
     ast->const_def_list = $3;
     for (auto &item : *$3) {
-      SymbolTable::getInstance().type_map[item.get()] = ast->b_type;
+      SymbolTable::getInstance().type_map[item->ident] = ast->b_type;
     }
     $$ = ast;
   }
@@ -135,13 +139,13 @@ BType
 // ConstDefList ::= ConstDef {"," ConstDef};
 ConstDefList
   : ConstDef {
-    auto vec = new vector<unique_ptr<BaseAST>>();
-    vec->push_back(unique_ptr<BaseAST>($1));
+    auto vec = new vector<unique_ptr<DefAST>>();
+    vec->push_back(unique_ptr<DefAST>($1));
     $$ = vec;
   }
   | ConstDef ',' ConstDefList {
-    auto vec = new vector<unique_ptr<BaseAST>>();
-    vec->push_back(unique_ptr<BaseAST>($1));
+    auto vec = new vector<unique_ptr<DefAST>>();
+    vec->push_back(unique_ptr<DefAST>($1));
     for (auto &item : *$3) {
       vec->push_back(move(item));
     }
@@ -153,6 +157,7 @@ ConstDefList
 ConstDef
   : IDENT '=' ConstInitVal {
     auto ast = new ConstDefAST();
+    ast->kind = DefAST::Kind::CONST_DEF;
     ast->ident = *unique_ptr<string>($1);
     ast->const_init_val = $3;
     SymbolTable::getInstance().val_map[ast->ident] = ast->const_init_val;

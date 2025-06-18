@@ -25,6 +25,8 @@ enum class LogicalOpKind {
 };
 
 class BaseAST;
+class ExpAST;
+class DefAST;
 
 class SymbolTable {
 public:
@@ -34,7 +36,7 @@ public:
   }
 
   std::map<std::string, int> val_map;
-  std::map<BaseAST *, std::string> type_map;
+  std::map<std::string, std::string> type_map;
 };
 
 class IRGenerator {
@@ -93,7 +95,7 @@ public:
 class ConstDeclAST : public BaseAST {
 public:
   std::string b_type;
-  std::vector<std::unique_ptr<BaseAST>> *const_def_list;
+  std::vector<std::unique_ptr<DefAST>> *const_def_list;
   void Dump() const override;
   void print(std::ostream &os) override;
 };
@@ -105,9 +107,17 @@ public:
   void print(std::ostream &os) override;
 };
 
-class ConstDefAST : public BaseAST {
+class DefAST : public BaseAST {
 public:
+  enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT };
+  Kind kind;
   std::string ident;
+  void Dump() const override{};
+  void print(std::ostream &os) override{};
+};
+
+class ConstDefAST : public DefAST {
+public:
   int const_init_val;
   void Dump() const override;
   void print(std::ostream &os) override;
