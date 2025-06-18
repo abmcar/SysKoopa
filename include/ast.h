@@ -30,6 +30,7 @@ class DefAST;
 
 class SymbolTable {
 public:
+  enum class DefType { CONST, VAR_IDENT, VAR_EXP };
   static SymbolTable &getInstance() {
     static SymbolTable instance;
     return instance;
@@ -37,6 +38,26 @@ public:
 
   std::map<std::string, int> val_map;
   std::map<std::string, std::string> type_map;
+  std::map<std::string, DefType> def_type_map;
+  std::map<std::string, ExpAST *> exp_val_map;
+  std::map<std::string, int> ident_var_map;
+
+  std::string get_var_ident(const std::string &ident) {
+    ident_var_map[ident]++;
+    std::string var_ident = "%" + ident + std::to_string(ident_var_map[ident]);
+    return var_ident;
+  }
+
+  bool is_var_defined(const std::string &ident) {
+    if (def_type_map.find(ident) == def_type_map.end()) {
+      return false;
+    }
+    if (def_type_map[ident] == DefType::VAR_EXP || def_type_map[ident] == DefType::VAR_IDENT) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 };
 
 class IRGenerator {
@@ -87,7 +108,10 @@ public:
 
 class DeclAST : public BaseAST {
 public:
+  enum Kind { CONST_DECL, VAR_DECL };
+  Kind kind;
   std::unique_ptr<BaseAST> const_decl;
+  std::unique_ptr<BaseAST> var_decl;
   void Dump() const override;
   void print(std::ostream &os) override;
 };
@@ -114,6 +138,21 @@ public:
   std::string ident;
   void Dump() const override{};
   void print(std::ostream &os) override{};
+};
+
+class VarDeclAST : public BaseAST {
+public:
+  std::string b_type;
+  std::vector<std::unique_ptr<DefAST>> *var_def_list;
+  void Dump() const override;
+  void print(std::ostream &os) override;
+};
+
+class VarDefAST : public DefAST {
+public:
+  std::unique_ptr<ExpAST> init_val;
+  void Dump() const override;
+  void print(std::ostream &os) override;
 };
 
 class ConstDefAST : public DefAST {
@@ -144,7 +183,11 @@ class ExpAST;
 
 class StmtAST : public BaseAST {
 public:
+  enum Kind { RETURN_STMT, ASSIGN_STMT };
+  Kind kind;
   std::unique_ptr<ExpAST> exp;
+  std::string l_val;
+  std::unique_ptr<ExpAST> r_exp;
   void Dump() const override;
   void print(std::ostream &os) override;
 };

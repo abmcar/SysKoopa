@@ -20,7 +20,11 @@ void FuncTypeAST::Dump() const {
 
 void DeclAST::Dump() const {
   std::cout << "DeclAST { ";
-  const_decl->Dump();
+  if (kind == DeclAST::Kind::CONST_DECL) {
+    const_decl->Dump();
+  } else if (kind == DeclAST::Kind::VAR_DECL) {
+    var_decl->Dump();
+  }
   std::cout << " }";
 }
 
@@ -33,6 +37,23 @@ void ConstDeclAST::Dump() const {
 }
 
 void BTypeAST::Dump() const { std::cout << "BTypeAST { " << b_type << " }"; }
+
+void VarDeclAST::Dump() const {
+  std::cout << "VarDeclAST { ";
+  for (auto &item : *var_def_list) {
+    item->Dump();
+  }
+  std::cout << " }";
+}
+
+void VarDefAST::Dump() const {
+  std::cout << "VarDefAST { " << ident;
+  if (kind == DefAST::Kind::VAR_DEF) {
+    std::cout << " = ";
+    init_val->Dump();
+  }
+  std::cout << " }";
+}
 
 void ConstDefAST::Dump() const {
   std::cout << "ConstDefAST { " << ident << " = " << const_init_val << " }";
@@ -58,7 +79,13 @@ void BlockItemAST::Dump() const {
 
 void StmtAST::Dump() const {
   std::cout << "StmtAST { ";
-  exp->Dump();
+  if (kind == StmtAST::Kind::RETURN_STMT) {
+    std::cout << "RETURN_STMT, ";
+    exp->Dump();
+  } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
+    std::cout << "ASSIGN_STMT, " << l_val << " = ";
+    r_exp->Dump();
+  }
   std::cout << " }";
 }
 
@@ -215,11 +242,30 @@ void FuncTypeAST::print(std::ostream &os) {
   }
 }
 
-void DeclAST::print(std::ostream &os) {}
+void DeclAST::print(std::ostream &os) {
+  if (kind == DeclAST::Kind::VAR_DECL) {
+    var_decl->print(os);
+  }
+}
 
 void ConstDeclAST::print(std::ostream &os) {}
 
 void BTypeAST::print(std::ostream &os) {}
+
+void VarDeclAST::print(std::ostream &os) {
+  for (auto &item : *var_def_list) {
+    item->print(os);
+  }
+}
+
+void VarDefAST::print(std::ostream &os) {
+  os << "  @" + ident << " = alloc i32\n";
+  if (kind == DefAST::Kind::VAR_DEF) {
+    init_val->print(os);
+    os << "  store " << get_koopa_exp_reg(init_val.get()) << ", @" + ident
+       << "\n";
+  }
+}
 
 void ConstDefAST::print(std::ostream &os) {}
 
@@ -241,8 +287,13 @@ void BlockItemAST::print(std::ostream &os) {
 }
 
 void StmtAST::print(std::ostream &os) {
-  exp->print(os);
-  os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
+  if (kind == StmtAST::Kind::RETURN_STMT) {
+    exp->print(os);
+    os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
+  } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
+    r_exp->print(os);
+    os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + l_val << "\n";
+  }
 }
 
 void ExpAST::print(std::ostream &os) {
@@ -269,8 +320,13 @@ void PrimaryExpAST::print(std::ostream &os) {
     exp->print(os);
     reg = exp->get_reg();
   } else if (kind == Kind::L_VAL) {
-    number = SymbolTable::getInstance().val_map[l_val];
-    kind = ExpAST::Kind::NUMBER;
+    if (SymbolTable::getInstance().def_type_map[l_val] == SymbolTable::DefType::CONST) {
+      number = SymbolTable::getInstance().val_map[l_val];
+      kind = ExpAST::Kind::NUMBER;
+    } else {
+      reg = IRGenerator::getInstance().getNextReg();
+      os << "  %" << reg << " = load @" + l_val << "\n";
+    }
   }
 }
 

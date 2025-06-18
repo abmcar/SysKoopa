@@ -52,14 +52,14 @@ using namespace std;
 %token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDecl
+%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDecl VarDecl
 %type <int_val> Number ConstInitVal
 %type <str_val> BType LVal
 %type <unary_op_kind> UnaryOp
-%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp
+%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp InitVal
 %type <ast_vec_val> BlockItemList
-%type <def_ast_val> ConstDef 
-%type <def_ast_vec_val> ConstDefList
+%type <def_ast_val> ConstDef VarDef
+%type <def_ast_vec_val> ConstDefList VarDefList
 %%
 
 // 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
@@ -106,11 +106,18 @@ FuncType
   }
   ;
 
-// Decl ::= ConstDecl
+// Decl ::= ConstDecl | VarDecl
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
+    ast->kind = DeclAST::Kind::CONST_DECL;
     ast->const_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | VarDecl {
+    auto ast = new DeclAST();
+    ast->kind = DeclAST::Kind::VAR_DECL;
+    ast->var_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -126,6 +133,65 @@ ConstDecl
       SymbolTable::getInstance().type_map[item->ident] = ast->b_type;
     }
     $$ = ast;
+  }
+  ;
+
+// VarDecl ::= Btype VarDef {"," VarDef} ";";
+// VarDecl ::= Btype VarDefList ";";
+VarDecl
+  : BType VarDefList ';' {
+    auto ast = new VarDeclAST();
+    ast->b_type = *unique_ptr<string>($1);
+    ast->var_def_list = $2;
+    for (auto &item : *ast->var_def_list) {
+      SymbolTable::getInstance().type_map[item->ident] = ast->b_type;
+    }
+    $$ = ast;
+  }
+  ;
+
+// VarDefList ::= VarDef {"," VarDef};
+VarDefList
+  : VarDef {
+    auto vec = new vector<unique_ptr<DefAST>>();
+    vec->push_back(unique_ptr<DefAST>($1));
+    $$ = vec;
+  }
+  | VarDef ',' VarDefList {
+    auto vec = new vector<unique_ptr<DefAST>>();
+    vec->push_back(unique_ptr<DefAST>($1));
+    for (auto &item : *$3) {
+      vec->push_back(move(item));
+    }
+    delete $3;
+    $$ = vec;
+  }
+  ;
+
+// VarDef ::= IDENT | IDENT "=" InitVal;
+VarDef
+  : IDENT {
+    auto ast = new VarDefAST();
+    ast->kind = DefAST::Kind::VAR_IDENT;
+    ast->ident = *unique_ptr<string>($1);
+    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::VAR_IDENT;
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new VarDefAST();
+    ast->kind = DefAST::Kind::VAR_DEF;
+    ast->ident = *unique_ptr<string>($1);
+    ast->init_val = unique_ptr<ExpAST>($3);
+    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
+    SymbolTable::getInstance().exp_val_map[ast->ident] = ast->init_val.get();
+    $$ = ast;
+  }
+  ;
+
+// InitVal ::= Exp;
+InitVal
+  : Exp {
+    $$ = $1;
   }
   ;
 
@@ -161,6 +227,7 @@ ConstDef
     ast->ident = *unique_ptr<string>($1);
     ast->const_init_val = $3;
     SymbolTable::getInstance().val_map[ast->ident] = ast->const_init_val;
+    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::CONST;
     $$ = ast;
   }
   ;
@@ -214,11 +281,25 @@ BlockItem
   }
   ;
 
-// Stmt ::= "return" Exp ";";
+// Stmt ::= "return" Exp ";" | LVal "=" Exp ";";
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::RETURN_STMT;
     ast->exp = unique_ptr<ExpAST>($2);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::ASSIGN_STMT;
+    ast->l_val = *unique_ptr<string>($1);
+    ast->r_exp = unique_ptr<ExpAST>($3);
+    if (!SymbolTable::getInstance().is_var_defined(ast->l_val)) {
+      assert(false);
+    } else {
+      SymbolTable::getInstance().def_type_map[ast->l_val] = SymbolTable::DefType::VAR_EXP;
+      SymbolTable::getInstance().exp_val_map[ast->l_val] = ast->r_exp.get();
+    }
     $$ = ast;
   }
   ;
