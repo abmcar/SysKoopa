@@ -1,5 +1,7 @@
 // riscv_codegen.cpp
 #include "riscv_codegen.h"
+#include "koopa.h"
+#include "util.h"
 #include <cassert>
 #include <iostream>
 
@@ -37,6 +39,28 @@ std::string AddrManager::getAddr(const koopa_raw_binary_t &binary) {
   return idToAddr(id);
 }
 
+std::string AddrManager::getAddr(const koopa_raw_store_t &store) {
+  int id;
+  if (raw_store_id_map.find(&store) == raw_store_id_map.end()) {
+    id = getNextId();
+    raw_store_id_map[&store] = id;
+  } else {
+    id = raw_store_id_map[&store];
+  }
+  return idToAddr(id);
+}
+
+std::string AddrManager::getAddr(const koopa_raw_load_t &load) {
+  int id;
+  if (raw_load_id_map.find(&load) == raw_load_id_map.end()) {
+    id = getNextId();
+    raw_load_id_map[&load] = id;
+  } else {
+    id = raw_load_id_map[&load];
+  }
+  return idToAddr(id);
+}
+
 std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
   if (value->kind.tag == KOOPA_RVT_INTEGER &&
       value->kind.data.integer.value == 0) {
@@ -56,6 +80,95 @@ std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
   return idToAddr(id);
 }
 
+void AddrManager::freeId(const koopa_raw_value_t &value) {
+  raw_val_id_map.erase(&value);
+}
+
+void AddrManager::freeId(const koopa_raw_store_t &store) {
+  raw_store_id_map.erase(&store);
+}
+
+void AddrManager::freeId(const koopa_raw_load_t &load) {
+  raw_load_id_map.erase(&load);
+}
+
+void AddrManager::freeId(const koopa_raw_binary_t &binary) {
+  raw_bin_id_map.erase(&binary);
+}
+
+int StackOffsetManager::getNextId() { return ++id_counter; }
+
+int StackOffsetManager::id_to_offset(int id) {
+  if (id_to_offset_map.find(id) == id_to_offset_map.end()) {
+    assert(false);
+  }
+  return id_to_offset_map[id];
+}
+
+void StackOffsetManager::setOffset(const koopa_raw_value_t &value) {
+  auto kind = value->kind.tag;
+  switch (kind) {
+  case KOOPA_RVT_LOAD:
+    load_id_map[&value->kind.data.load] = getNextId();
+    id_to_offset_map[load_id_map[&value->kind.data.load]] =
+        current_stack_offset;
+    current_stack_offset += 4;
+    break;
+  case KOOPA_RVT_BINARY:
+    binary_id_map[&value->kind.data.binary] = getNextId();
+    id_to_offset_map[binary_id_map[&value->kind.data.binary]] =
+        current_stack_offset;
+    current_stack_offset += 4;
+    break;
+  case KOOPA_RVT_ALLOC:
+    alloc_name_id_map[value->name] = getNextId();
+    id_to_offset_map[alloc_name_id_map[value->name]] = current_stack_offset;
+    current_stack_offset += 4;
+    break;
+  default:
+    assert(false);
+  }
+}
+
+int StackOffsetManager::getOffset(const koopa_raw_load_t &load) {
+  int id;
+  if (load_id_map.find(&load) == load_id_map.end()) {
+    assert(false);
+  } else {
+    id = load_id_map[&load];
+  }
+  return id_to_offset(id);
+}
+
+int StackOffsetManager::getOffset(const koopa_raw_binary_t &binary) {
+  int id;
+  if (binary_id_map.find(&binary) == binary_id_map.end()) {
+    assert(false);
+  } else {
+    id = binary_id_map[&binary];
+  }
+  return id_to_offset(id);
+}
+
+int StackOffsetManager::getOffset(const std::string &alloc_name) {
+  int id;
+  if (alloc_name_id_map.find(alloc_name) == alloc_name_id_map.end()) {
+    assert(false);
+  } else {
+    id = alloc_name_id_map[alloc_name];
+  }
+  return id_to_offset(id);
+}
+
+void StackOffsetManager::clear() {
+  load_id_map.clear();
+  binary_id_map.clear();
+  alloc_name_id_map.clear();
+  id_to_offset_map.clear();
+  current_stack_offset = 0;
+  id_counter = 0;
+}
+
 CodeGen::CodeGen(const std::string &koopa_ir) {
   const char *str = koopa_ir.c_str();
   koopa_program_t program;
@@ -71,8 +184,6 @@ std::string CodeGen::gererate() {
   Visit(raw);
   return oss.str();
 }
-
-// 后面是 Visit 的类成员定义（略）...
 
 // 访问 raw program
 void CodeGen::Visit(const koopa_raw_program_t &program) {
@@ -117,6 +228,8 @@ void CodeGen::Visit(const koopa_raw_function_t &func) {
   func_name.erase(0, 1);
   oss << "  .globl " << func_name << "\n";
   oss << func_name << ":\n";
+  AllocateStack(func);
+  modify_sp(-total_stack_size, oss);
   // 访问所有基本块
   Visit(func->bbs);
 }
@@ -146,6 +259,17 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     // 访问 binary 指令
     Visit(kind.data.binary);
     break;
+  case KOOPA_RVT_LOAD:
+    // 访问 load 指令
+    Visit(kind.data.load);
+    break;
+  case KOOPA_RVT_STORE:
+    // 访问 store 指令
+    Visit(kind.data.store);
+    break;
+  case KOOPA_RVT_ALLOC:
+    // 访问 alloc 指令
+    break;
   default:
     // 其他类型暂时遇不到
     std::cerr << "Unknown instruction: " << kind.tag << std::endl;
@@ -159,6 +283,7 @@ void CodeGen::Visit(const koopa_raw_return_t &ret) {
   } else {
     oss << "  mv a0, " << addr_manager.getAddr(ret.value) << "\n";
   }
+  modify_sp(total_stack_size, oss);
   oss << "  ret\n";
 }
 
@@ -223,6 +348,39 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     std::cerr << "Unknown binary operation: " << binary.op << std::endl;
     assert(false);
   }
+  oss << "  sw " << res_addr << ", " << stack_offset_manager.getOffset(binary) << "(sp)\n";
+  // addr_manager.freeReg(res_addr);
+  addr_manager.freeReg(lhs_addr);
+  addr_manager.freeReg(rhs_addr);
+  // addr_manager.freeId(binary);
+  addr_manager.freeId(binary.lhs);
+  addr_manager.freeId(binary.rhs);
+}
+
+void CodeGen::Visit(const koopa_raw_load_t &load) {
+  std::string res_addr = addr_manager.getAddr(load);
+  int src_offset = stack_offset_manager.getOffset(load.src->name);
+  oss << "  lw " << res_addr << ", " << src_offset << "(sp)\n";
+  int offset = stack_offset_manager.getOffset(load);
+  oss << "  sw " << res_addr << ", " << offset << "(sp)\n";
+  addr_manager.freeReg(res_addr);
+  addr_manager.freeId(load);
+}
+
+void CodeGen::Visit(const koopa_raw_store_t &store) {
+  std::string dest_name = store.dest->name;
+  int dest_offset = stack_offset_manager.getOffset(dest_name);
+  std::string val_addr = addr_manager.getAddr(store.value);
+  if (store.value->kind.tag == KOOPA_RVT_BINARY) {
+    cmd_li(store.value, val_addr);
+  } else if (store.value->kind.tag == KOOPA_RVT_INTEGER) {
+    cmd_li(store.value, val_addr);
+  } else {
+    assert(false);
+  }
+  oss << "  sw " << val_addr << ", " << dest_offset << "(sp)\n";
+  addr_manager.freeReg(val_addr);
+  addr_manager.freeId(store.value);
 }
 
 void CodeGen::cmd_li(const koopa_raw_value_t &value,
@@ -232,8 +390,32 @@ void CodeGen::cmd_li(const koopa_raw_value_t &value,
   }
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     oss << "  li " << res_addr << ", " << get_value(value) << "\n";
-    addr_manager.freeReg(res_addr);
   } else if (value->kind.tag == KOOPA_RVT_BINARY) {
-    // oss << "  li " << res_addr << ", " << get_value(value) << "\n";
+    oss << "  lw " << res_addr << ", " << stack_offset_manager.getOffset(value->kind.data.binary)  << "(sp)\n";
+  } else if (value->kind.tag == KOOPA_RVT_LOAD) {
+    oss << "  lw " << res_addr << ", " << stack_offset_manager.getOffset(value->kind.data.load)  << "(sp)\n";
+  } else {  
+    assert(false);
   }
+}
+
+// 分配栈空间：为 alloc 和有返回值的指令分配 4 字节，并记录偏移
+void CodeGen::AllocateStack(const koopa_raw_function_t &func) {
+  stack_offset_manager.clear();
+  // 遍历所有基本块
+  for (size_t i = 0; i < func->bbs.len; ++i) {
+    auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
+    // 遍历基本块内所有指令
+    for (size_t j = 0; j < bb->insts.len; ++j) {
+      auto inst = reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
+      // alloc 或有返回值的指令
+      if (inst->kind.tag == KOOPA_RVT_ALLOC ||
+          (inst->ty->tag != KOOPA_RTT_UNIT)) {
+        stack_offset_manager.setOffset(inst);
+      }
+    }
+  }
+  // 计算总栈空间并 16 字节对齐
+  total_stack_size =
+      ((stack_offset_manager.current_stack_offset + 15) / 16) * 16;
 }

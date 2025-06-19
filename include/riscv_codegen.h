@@ -14,7 +14,13 @@ class AddrManager {
 public:
   std::string getAddr(const koopa_raw_binary_t &binary);
   std::string getAddr(const koopa_raw_value_t &value);
+  std::string getAddr(const koopa_raw_load_t &load);
+  std::string getAddr(const koopa_raw_store_t &store);
   void freeReg(const std::string &reg);
+  void freeId(const koopa_raw_value_t &value);
+  void freeId(const koopa_raw_binary_t &binary);
+  void freeId(const koopa_raw_load_t &load);
+  void freeId(const koopa_raw_store_t &store);
 
 private:
   std::string getReg();
@@ -24,14 +30,38 @@ private:
   // 对象到id的映射
   std::unordered_map<const koopa_raw_binary_t *, int> raw_bin_id_map;
   std::unordered_map<const koopa_raw_value_t *, int> raw_val_id_map;
+  std::unordered_map<const koopa_raw_load_t *, int> raw_load_id_map;
+  std::unordered_map<const koopa_raw_store_t *, int> raw_store_id_map;
 
-  // id到地址的映射
+
   std::unordered_map<int, std::string> id_addr_map;
+  std::unordered_map<std::string, int> addr_id_map;
 
   // 可用的寄存器集合
   std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 
   // id计数器
+  int id_counter = 0;
+};
+
+class StackOffsetManager {
+public:
+  void setOffset(const koopa_raw_value_t &value);
+  int getOffset(const koopa_raw_load_t &load);
+  int getOffset(const koopa_raw_binary_t &binary);
+  int getOffset(const std::string &alloc_name);
+  void clear();
+  int current_stack_offset = 0;
+
+private:
+  int id_to_offset(int id);
+  int getNextId();
+  std::unordered_map<const koopa_raw_load_t *, int> load_id_map;
+  std::unordered_map<const koopa_raw_binary_t *, int> binary_id_map;
+  std::unordered_map<std::string, int> alloc_name_id_map;
+  std::unordered_map<int, int> id_to_offset_map;
+
+  
   int id_counter = 0;
 };
 
@@ -45,6 +75,8 @@ private:
   std::stringstream oss;
   koopa_raw_program_builder_t builder;
   koopa_raw_program_t raw;
+  int total_stack_size = 0;
+  void AllocateStack(const koopa_raw_function_t &func);
   void Visit(const koopa_raw_program_t &);
   void Visit(const koopa_raw_slice_t &);
   void Visit(const koopa_raw_function_t &);
@@ -53,7 +85,11 @@ private:
   void Visit(const koopa_raw_return_t &);
   void Visit(const koopa_raw_integer_t &);
   void Visit(const koopa_raw_binary_t &);
+  void Visit(const koopa_raw_load_t &);
+  void Visit(const koopa_raw_store_t &);
   void cmd_li(const koopa_raw_value_t &value, const std::string &res_addr);
   int32_t get_value(const koopa_raw_value_t);
+  void print_num(int num);
   AddrManager addr_manager;
+  StackOffsetManager stack_offset_manager = StackOffsetManager();
 };
