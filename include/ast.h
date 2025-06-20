@@ -40,9 +40,12 @@ public:
   std::map<std::string, std::string> type_map;
   std::map<std::string, DefType> def_type_map;
   std::map<std::string, ExpAST *> exp_val_map;
+
+  std::map<std::string, std::string> lval_ident_map;
+  std::map<std::string, bool> is_ident_alloc_map;
   std::map<std::string, int> ident_var_map;
 
-  std::string get_var_ident(const std::string &ident) {
+  std::string get_var_ident(const std::string ident) {
     ident_var_map[ident]++;
     std::string var_ident = "%" + ident + std::to_string(ident_var_map[ident]);
     return var_ident;
@@ -52,11 +55,98 @@ public:
     if (def_type_map.find(ident) == def_type_map.end()) {
       return false;
     }
-    if (def_type_map[ident] == DefType::VAR_EXP || def_type_map[ident] == DefType::VAR_IDENT) {
+    if (def_type_map[ident] == DefType::VAR_EXP ||
+        def_type_map[ident] == DefType::VAR_IDENT) {
       return true;
     } else {
       return false;
     }
+  }
+};
+
+class SymbolTableManger {
+public:
+  static SymbolTableManger &getInstance() {
+    static SymbolTableManger instance;
+    return instance;
+  }
+
+  std::vector<SymbolTable> symbol_table_stack;
+  std::map<BaseAST *, SymbolTable> stmt_table_map;
+  std::map<std::string, int> ident_count_map;
+
+  ExpAST * get_exp(const std::string &ident) {
+    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
+      if (table->is_ident_alloc_map[ident]) {
+        return table->exp_val_map[ident];
+      }
+    }
+    assert(false);
+  }
+
+  int get_val(const std::string &ident) {
+    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
+      if (table->is_ident_alloc_map[ident]) {
+        return table->val_map[ident];
+      }
+    }
+    assert(false);
+  }
+
+  SymbolTable::DefType get_def_type(const std::string &ident) {
+    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
+      if (table->is_ident_alloc_map[ident]) {
+        return table->def_type_map[ident];
+      }
+    }
+    assert(false);
+  }
+
+  std::string get_ident(const std::string &ident) {
+    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
+      if (table->is_ident_alloc_map[ident]) {
+        return table->lval_ident_map[ident];
+      }
+    }
+    assert(false);
+  }
+
+  void alloc_ident(const std::string &ident) {
+    get_back_table().is_ident_alloc_map[ident] = true;
+  }
+
+  std::string get_lval_ident(const std::string &ident) {
+    return ident + std::to_string(ident_count_map[ident]++);
+  }
+
+  void push_symbol_table() { symbol_table_stack.push_back(SymbolTable()); }
+
+  void alloc_stmt_table(BaseAST *stmt) {
+    stmt_table_map[stmt] = symbol_table_stack.back();
+  }
+
+  void use_stmt_table(BaseAST *stmt) {
+    symbol_table_stack.push_back(stmt_table_map[stmt]);
+  }
+
+  void pop_symbol_table() { symbol_table_stack.pop_back(); }
+
+  bool is_var_defined(const std::string &ident) {
+    for (auto symbol_table = symbol_table_stack.rbegin();
+         symbol_table != symbol_table_stack.rend(); symbol_table++) {
+      if (symbol_table->is_var_defined(ident)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  SymbolTable &get_stmt_table(BaseAST *stmt) {
+    return stmt_table_map[stmt];
+  }
+
+  SymbolTable &get_back_table() {
+    return symbol_table_stack.back();
   }
 };
 
@@ -79,7 +169,7 @@ class BaseAST {
 public:
   virtual ~BaseAST() = default;
   virtual void Dump() const = 0;
-  virtual void print(std::ostream &os){};
+  virtual void print(std::ostream &os) {};
   friend std::ostream &operator<<(std::ostream &os, BaseAST &ast);
 };
 
@@ -136,8 +226,8 @@ public:
   enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT };
   Kind kind;
   std::string ident;
-  void Dump() const override{};
-  void print(std::ostream &os) override{};
+  void Dump() const override {};
+  void print(std::ostream &os) override {};
 };
 
 class VarDeclAST : public BaseAST {
@@ -183,11 +273,12 @@ class ExpAST;
 
 class StmtAST : public BaseAST {
 public:
-  enum Kind { RETURN_STMT, ASSIGN_STMT };
+  enum Kind { RETURN_STMT, ASSIGN_STMT, BLOCK_STMT, EXP_STMT, EMPTY_STMT };
   Kind kind;
   std::unique_ptr<ExpAST> exp;
   std::string l_val;
   std::unique_ptr<ExpAST> r_exp;
+  std::unique_ptr<BaseAST> block;
   void Dump() const override;
   void print(std::ostream &os) override;
 };

@@ -130,7 +130,7 @@ ConstDecl
     ast->b_type = *unique_ptr<string>($2);
     ast->const_def_list = $3;
     for (auto &item : *$3) {
-      SymbolTable::getInstance().type_map[item->ident] = ast->b_type;
+      SymbolTableManger::getInstance().get_back_table().type_map[item->ident] = ast->b_type;
     }
     $$ = ast;
   }
@@ -144,7 +144,7 @@ VarDecl
     ast->b_type = *unique_ptr<string>($1);
     ast->var_def_list = $2;
     for (auto &item : *ast->var_def_list) {
-      SymbolTable::getInstance().type_map[item->ident] = ast->b_type;
+      SymbolTableManger::getInstance().get_back_table().type_map[item->ident] = ast->b_type;
     }
     $$ = ast;
   }
@@ -174,7 +174,8 @@ VarDef
     auto ast = new VarDefAST();
     ast->kind = DefAST::Kind::VAR_IDENT;
     ast->ident = *unique_ptr<string>($1);
-    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::VAR_IDENT;
+    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_IDENT;
+    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
   | IDENT '=' InitVal {
@@ -182,8 +183,9 @@ VarDef
     ast->kind = DefAST::Kind::VAR_DEF;
     ast->ident = *unique_ptr<string>($1);
     ast->init_val = unique_ptr<ExpAST>($3);
-    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
-    SymbolTable::getInstance().exp_val_map[ast->ident] = ast->init_val.get();
+    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
+    SymbolTableManger::getInstance().get_back_table().exp_val_map[ast->ident] = ast->init_val.get();
+    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
   ;
@@ -226,8 +228,9 @@ ConstDef
     ast->kind = DefAST::Kind::CONST_DEF;
     ast->ident = *unique_ptr<string>($1);
     ast->const_init_val = $3;
-    SymbolTable::getInstance().val_map[ast->ident] = ast->const_init_val;
-    SymbolTable::getInstance().def_type_map[ast->ident] = SymbolTable::DefType::CONST;
+    SymbolTableManger::getInstance().get_back_table().val_map[ast->ident] = ast->const_init_val;
+    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::CONST;
+    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
   ;
@@ -241,9 +244,19 @@ ConstInitVal
 
 // Block ::= "{" {BlockItem} "}";
 Block
-  : '{' BlockItemList '}' {
+  : '{' {
+    SymbolTableManger::getInstance().push_symbol_table();
+  }
+  BlockItemList '}' {
     auto ast = new BlockAST();
-    ast->block_item_list = $2;
+    ast->block_item_list = $3;
+    $$ = ast;
+    SymbolTableManger::getInstance().alloc_stmt_table(ast);
+    SymbolTableManger::getInstance().pop_symbol_table();
+  }
+  | '{' '}' {
+    auto ast = new BlockAST();
+    ast->block_item_list = nullptr;
     $$ = ast;
   }
   ;
@@ -281,7 +294,7 @@ BlockItem
   }
   ;
 
-// Stmt ::= "return" Exp ";" | LVal "=" Exp ";";
+// Stmt ::= "return" [Exp] ";" | LVal "=" Exp ";" | Block | [Exp] ";";
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
@@ -289,17 +302,40 @@ Stmt
     ast->exp = unique_ptr<ExpAST>($2);
     $$ = ast;
   }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::RETURN_STMT;
+    ast->exp = nullptr;
+    $$ = ast;
+  }
   | LVal '=' Exp ';' {
     auto ast = new StmtAST();
     ast->kind = StmtAST::Kind::ASSIGN_STMT;
     ast->l_val = *unique_ptr<string>($1);
     ast->r_exp = unique_ptr<ExpAST>($3);
-    if (!SymbolTable::getInstance().is_var_defined(ast->l_val)) {
+    if (!SymbolTableManger::getInstance().is_var_defined(ast->l_val)) {
       assert(false);
     } else {
-      SymbolTable::getInstance().def_type_map[ast->l_val] = SymbolTable::DefType::VAR_EXP;
-      SymbolTable::getInstance().exp_val_map[ast->l_val] = ast->r_exp.get();
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->l_val] = SymbolTable::DefType::VAR_EXP;
+      SymbolTableManger::getInstance().get_back_table().exp_val_map[ast->l_val] = ast->r_exp.get();
     }
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::BLOCK_STMT;
+    ast->block = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::EXP_STMT;
+    ast->exp = unique_ptr<ExpAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::EMPTY_STMT;
     $$ = ast;
   }
   ;

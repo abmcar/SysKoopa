@@ -61,6 +61,10 @@ void ConstDefAST::Dump() const {
 
 void BlockAST::Dump() const {
   std::cout << "BlockAST { ";
+  if (block_item_list == nullptr) {
+    std::cout << "EMPTY_BLOCK";
+    return;
+  }
   for (auto &item : *block_item_list) {
     item->Dump();
   }
@@ -83,8 +87,15 @@ void StmtAST::Dump() const {
     std::cout << "RETURN_STMT, ";
     exp->Dump();
   } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
-    std::cout << "ASSIGN_STMT, " << l_val << " = ";
     r_exp->Dump();
+  } else if (kind == StmtAST::Kind::BLOCK_STMT) {
+    std::cout << "BLOCK_STMT, ";
+    block->Dump();
+  } else if (kind == StmtAST::Kind::EXP_STMT) {
+    std::cout << "EXP_STMT, ";
+    exp->Dump();
+  } else if (kind == StmtAST::Kind::EMPTY_STMT) {
+    std::cout << "EMPTY_STMT";
   }
   std::cout << " }";
 }
@@ -232,6 +243,9 @@ void FuncDefAST::print(std::ostream &os) {
      << ": ";
   func_type->print(os);
   os << " {\n";
+  os << "%"
+     << "entry"
+     << ":\n";
   block->print(os);
   os << "}";
 }
@@ -245,10 +259,16 @@ void FuncTypeAST::print(std::ostream &os) {
 void DeclAST::print(std::ostream &os) {
   if (kind == DeclAST::Kind::VAR_DECL) {
     var_decl->print(os);
+  } else if (kind == DeclAST::Kind::CONST_DECL) {
+    const_decl->print(os);
   }
 }
 
-void ConstDeclAST::print(std::ostream &os) {}
+void ConstDeclAST::print(std::ostream &os) {
+  for (auto &item : *const_def_list) {
+    item->print(os);
+  }
+}
 
 void BTypeAST::print(std::ostream &os) {}
 
@@ -259,23 +279,29 @@ void VarDeclAST::print(std::ostream &os) {
 }
 
 void VarDefAST::print(std::ostream &os) {
+  std::string ident = SymbolTableManger::getInstance().get_back_table().lval_ident_map[this->ident];
   os << "  @" + ident << " = alloc i32\n";
   if (kind == DefAST::Kind::VAR_DEF) {
     init_val->print(os);
     os << "  store " << get_koopa_exp_reg(init_val.get()) << ", @" + ident
        << "\n";
   }
+  SymbolTableManger::getInstance().alloc_ident(this->ident);
 }
 
-void ConstDefAST::print(std::ostream &os) {}
+void ConstDefAST::print(std::ostream &os) {
+  SymbolTableManger::getInstance().alloc_ident(this->ident);
+}
 
 void BlockAST::print(std::ostream &os) {
-  os << "%"
-     << "entry"
-     << ":\n";
+  if (block_item_list == nullptr) {
+    return;
+  }
+  SymbolTableManger::getInstance().use_stmt_table(this);
   for (auto &item : *block_item_list) {
     item->print(os);
   }
+  SymbolTableManger::getInstance().pop_symbol_table();
 }
 
 void BlockItemAST::print(std::ostream &os) {
@@ -289,10 +315,20 @@ void BlockItemAST::print(std::ostream &os) {
 void StmtAST::print(std::ostream &os) {
   if (kind == StmtAST::Kind::RETURN_STMT) {
     exp->print(os);
-    os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
+    if (exp != nullptr) {
+      os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
+    } else {
+      os << "  ret\n";
+    }
   } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
     r_exp->print(os);
-    os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + l_val << "\n";
+    std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
+    os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident << "\n";
+  } else if (kind == StmtAST::Kind::BLOCK_STMT) {
+    block->print(os);
+  } else if (kind == StmtAST::Kind::EXP_STMT) {
+    exp->print(os);
+  } else if (kind == StmtAST::Kind::EMPTY_STMT) {
   }
 }
 
@@ -320,12 +356,14 @@ void PrimaryExpAST::print(std::ostream &os) {
     exp->print(os);
     reg = exp->get_reg();
   } else if (kind == Kind::L_VAL) {
-    if (SymbolTable::getInstance().def_type_map[l_val] == SymbolTable::DefType::CONST) {
-      number = SymbolTable::getInstance().val_map[l_val];
+    if (SymbolTableManger::getInstance().get_def_type(l_val) ==
+        SymbolTable::DefType::CONST) {
+      number = SymbolTableManger::getInstance().get_val(l_val);
       kind = ExpAST::Kind::NUMBER;
     } else {
       reg = IRGenerator::getInstance().getNextReg();
-      os << "  %" << reg << " = load @" + l_val << "\n";
+      std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
+      os << "  %" << reg << " = load @" + ident << "\n";
     }
   }
 }
@@ -481,7 +519,7 @@ int PrimaryExpAST::calc_number() {
   } else if (kind == Kind::EXP) {
     number = exp->calc_number();
   } else if (kind == Kind::L_VAL) {
-    number = SymbolTable::getInstance().val_map[l_val];
+    number = SymbolTableManger::getInstance().get_back_table().val_map[l_val];
   } else {
     assert(false);
   }
