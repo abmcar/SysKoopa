@@ -88,8 +88,13 @@ void SymbolTableManger::pop_symbol_table() {
 }
 
 bool SymbolTableManger::is_var_defined(const std::string &ident) {
-  auto table = find_table(ident);
-  return table && table->is_var_defined(ident);
+  for (auto table = symbol_table_stack.rbegin();
+       table != symbol_table_stack.rend(); ++table) {
+    if (table->is_var_defined(ident)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 SymbolTable &SymbolTableManger::get_stmt_table(BaseAST *stmt) {
