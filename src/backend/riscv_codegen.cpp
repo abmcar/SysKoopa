@@ -21,6 +21,19 @@ std::string AddrManager::getReg() {
   return reg_str;
 }
 
+template <typename T>
+std::string AddrManager::getAddrImpl(
+    const T &obj, std::unordered_map<const T *, int> &map) {
+  int id;
+  if (map.find(&obj) == map.end()) {
+    id = getNextId();
+    map[&obj] = id;
+  } else {
+    id = map[&obj];
+  }
+  return idToAddr(id);
+}
+
 void AddrManager::freeReg(const std::string &reg) {
   if (reg == "x0") {
     return;
@@ -29,36 +42,15 @@ void AddrManager::freeReg(const std::string &reg) {
 }
 
 std::string AddrManager::getAddr(const koopa_raw_binary_t &binary) {
-  int id;
-  if (raw_bin_id_map.find(&binary) == raw_bin_id_map.end()) {
-    id = getNextId();
-    raw_bin_id_map[&binary] = id;
-  } else {
-    id = raw_bin_id_map[&binary];
-  }
-  return idToAddr(id);
+  return getAddrImpl(binary, raw_bin_id_map);
 }
 
 std::string AddrManager::getAddr(const koopa_raw_store_t &store) {
-  int id;
-  if (raw_store_id_map.find(&store) == raw_store_id_map.end()) {
-    id = getNextId();
-    raw_store_id_map[&store] = id;
-  } else {
-    id = raw_store_id_map[&store];
-  }
-  return idToAddr(id);
+  return getAddrImpl(store, raw_store_id_map);
 }
 
 std::string AddrManager::getAddr(const koopa_raw_load_t &load) {
-  int id;
-  if (raw_load_id_map.find(&load) == raw_load_id_map.end()) {
-    id = getNextId();
-    raw_load_id_map[&load] = id;
-  } else {
-    id = raw_load_id_map[&load];
-  }
-  return idToAddr(id);
+  return getAddrImpl(load, raw_load_id_map);
 }
 
 std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
@@ -70,14 +62,7 @@ std::string AddrManager::getAddr(const koopa_raw_value_t &value) {
     return getAddr(value->kind.data.binary);
   }
 
-  int id;
-  if (raw_val_id_map.find(&value) == raw_val_id_map.end()) {
-    id = getNextId();
-    raw_val_id_map[&value] = id;
-  } else {
-    id = raw_val_id_map[&value];
-  }
-  return idToAddr(id);
+  return getAddrImpl(value, raw_val_id_map);
 }
 
 void AddrManager::freeId(const koopa_raw_value_t &value) {

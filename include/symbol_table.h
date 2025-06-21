@@ -45,6 +45,7 @@ public:
 
 private:
   SymbolTableManger() = default;
+  SymbolTable *find_table(const std::string &ident);
 
   std::vector<SymbolTable> symbol_table_stack;
   std::map<BaseAST *, SymbolTable> stmt_table_map;

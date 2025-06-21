@@ -29,40 +29,38 @@ SymbolTableManger &SymbolTableManger::getInstance() {
   return instance;
 }
 
-ExpAST *SymbolTableManger::get_exp(const std::string &ident) {
-  for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
+SymbolTable *SymbolTableManger::find_table(const std::string &ident) {
+  for (auto table = symbol_table_stack.rbegin();
+       table != symbol_table_stack.rend(); ++table) {
     if (table->is_ident_alloc_map[ident]) {
-      return table->exp_val_map[ident];
+      return &(*table);
     }
   }
-  assert(false);
+  return nullptr;
+}
+
+ExpAST *SymbolTableManger::get_exp(const std::string &ident) {
+  auto table = find_table(ident);
+  assert(table);
+  return table->exp_val_map[ident];
 }
 
 int SymbolTableManger::get_val(const std::string &ident) {
-  for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-    if (table->is_ident_alloc_map[ident]) {
-      return table->val_map[ident];
-    }
-  }
-  assert(false);
+  auto table = find_table(ident);
+  assert(table);
+  return table->val_map[ident];
 }
 
 SymbolTable::DefType SymbolTableManger::get_def_type(const std::string &ident) {
-  for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-    if (table->is_ident_alloc_map[ident]) {
-      return table->def_type_map[ident];
-    }
-  }
-  assert(false);
+  auto table = find_table(ident);
+  assert(table);
+  return table->def_type_map[ident];
 }
 
 std::string SymbolTableManger::get_ident(const std::string &ident) {
-  for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-    if (table->is_ident_alloc_map[ident]) {
-      return table->lval_ident_map[ident];
-    }
-  }
-  assert(false);
+  auto table = find_table(ident);
+  assert(table);
+  return table->lval_ident_map[ident];
 }
 
 void SymbolTableManger::alloc_ident(const std::string &ident) {
@@ -90,13 +88,8 @@ void SymbolTableManger::pop_symbol_table() {
 }
 
 bool SymbolTableManger::is_var_defined(const std::string &ident) {
-  for (auto symbol_table = symbol_table_stack.rbegin();
-       symbol_table != symbol_table_stack.rend(); symbol_table++) {
-    if (symbol_table->is_var_defined(ident)) {
-      return true;
-    }
-  }
-  return false;
+  auto table = find_table(ident);
+  return table && table->is_var_defined(ident);
 }
 
 SymbolTable &SymbolTableManger::get_stmt_table(BaseAST *stmt) {

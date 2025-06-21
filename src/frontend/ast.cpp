@@ -501,153 +501,151 @@ void RelExpAST::print(std::ostream &os) {
   }
 }
 
-int ExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::L_OR_EXP) {
-    number = l_or_exp->calc_number();
-    kind = ExpAST::Kind::NUMBER;
-    return number;
-  } else {
-    assert(false);
+namespace {
+template <typename Node, typename Fn>
+int calc_number_impl(Node &node, Fn compute) {
+  if (node.kind != ExpAST::Kind::NUMBER) {
+    node.number = compute();
+    node.kind = ExpAST::Kind::NUMBER;
   }
+  return node.number;
+}
+} // namespace
+
+int ExpAST::calc_number() {
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::L_OR_EXP) {
+      return l_or_exp->calc_number();
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int PrimaryExpAST::calc_number() {
-  if (kind == Kind::NUMBER) {
-    return number;
-  } else if (kind == Kind::EXP) {
-    number = exp->calc_number();
-  } else if (kind == Kind::L_VAL) {
-    number = SymbolTableManger::getInstance().get_back_table().val_map[l_val];
-  } else {
+  return calc_number_impl(*this, [&]() {
+    if (kind == Kind::EXP) {
+      return exp->calc_number();
+    }
+    if (kind == Kind::L_VAL) {
+      return SymbolTableManger::getInstance().get_back_table().val_map[l_val];
+    }
     assert(false);
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    return 0;
+  });
 }
 
 int UnaryExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::PRIMARY_EXP) {
-    number = primary_exp->calc_number();
-  } else {
-    if (unary_op == UnaryOpKind::Minus) {
-      number = -unary_exp->calc_number();
-    } else if (unary_op == UnaryOpKind::Plus) {
-      number = unary_exp->calc_number();
-    } else {
-      assert(false);
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::PRIMARY_EXP) {
+      return primary_exp->calc_number();
     }
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    if (unary_op == UnaryOpKind::Minus) {
+      return -unary_exp->calc_number();
+    }
+    if (unary_op == UnaryOpKind::Plus) {
+      return unary_exp->calc_number();
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int MulExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::UNARY_EXP) {
-    number = unary_exp->calc_number();
-  } else {
-    if (mul_op == MulOpKind::Mul) {
-      number = mul_exp->calc_number() * unary_exp->calc_number();
-    } else if (mul_op == MulOpKind::Div) {
-      number = mul_exp->calc_number() / unary_exp->calc_number();
-    } else if (mul_op == MulOpKind::Mod) {
-      number = mul_exp->calc_number() % unary_exp->calc_number();
-    } else {
-      assert(false);
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::UNARY_EXP) {
+      return unary_exp->calc_number();
     }
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    if (mul_op == MulOpKind::Mul) {
+      return mul_exp->calc_number() * unary_exp->calc_number();
+    }
+    if (mul_op == MulOpKind::Div) {
+      return mul_exp->calc_number() / unary_exp->calc_number();
+    }
+    if (mul_op == MulOpKind::Mod) {
+      return mul_exp->calc_number() % unary_exp->calc_number();
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int AddExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::MUL_EXP) {
-    number = mul_exp->calc_number();
-  } else {
-    if (add_op == AddOpKind::Plus) {
-      number = add_exp->calc_number() + mul_exp->calc_number();
-    } else if (add_op == AddOpKind::Minus) {
-      number = add_exp->calc_number() - mul_exp->calc_number();
-    } else {
-      assert(false);
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::MUL_EXP) {
+      return mul_exp->calc_number();
     }
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    if (add_op == AddOpKind::Plus) {
+      return add_exp->calc_number() + mul_exp->calc_number();
+    }
+    if (add_op == AddOpKind::Minus) {
+      return add_exp->calc_number() - mul_exp->calc_number();
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int RelExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::ADD_EXP) {
-    number = add_exp->calc_number();
-  } else {
-    if (logical_op == LogicalOpKind::Greater) {
-      number = rel_exp->calc_number() > add_exp->calc_number() ? 1 : 0;
-    } else if (logical_op == LogicalOpKind::Less) {
-      number = rel_exp->calc_number() < add_exp->calc_number() ? 1 : 0;
-    } else if (logical_op == LogicalOpKind::GreaterEqual) {
-      number = rel_exp->calc_number() >= add_exp->calc_number() ? 1 : 0;
-    } else if (logical_op == LogicalOpKind::LessEqual) {
-      number = rel_exp->calc_number() <= add_exp->calc_number() ? 1 : 0;
-    } else {
-      assert(false);
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::ADD_EXP) {
+      return add_exp->calc_number();
     }
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    if (logical_op == LogicalOpKind::Greater) {
+      return rel_exp->calc_number() > add_exp->calc_number() ? 1 : 0;
+    }
+    if (logical_op == LogicalOpKind::Less) {
+      return rel_exp->calc_number() < add_exp->calc_number() ? 1 : 0;
+    }
+    if (logical_op == LogicalOpKind::GreaterEqual) {
+      return rel_exp->calc_number() >= add_exp->calc_number() ? 1 : 0;
+    }
+    if (logical_op == LogicalOpKind::LessEqual) {
+      return rel_exp->calc_number() <= add_exp->calc_number() ? 1 : 0;
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int EqExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::REL_EXP) {
-    number = rel_exp->calc_number();
-  } else {
-    if (logical_op == LogicalOpKind::Equal) {
-      number = rel_exp->calc_number() == eq_exp->calc_number() ? 1 : 0;
-    } else if (logical_op == LogicalOpKind::NotEqual) {
-      number = rel_exp->calc_number() != eq_exp->calc_number() ? 1 : 0;
-    } else {
-      assert(false);
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::REL_EXP) {
+      return rel_exp->calc_number();
     }
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    if (logical_op == LogicalOpKind::Equal) {
+      return rel_exp->calc_number() == eq_exp->calc_number() ? 1 : 0;
+    }
+    if (logical_op == LogicalOpKind::NotEqual) {
+      return rel_exp->calc_number() != eq_exp->calc_number() ? 1 : 0;
+    }
+    assert(false);
+    return 0;
+  });
 }
 
 int LAndExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::EQ_EXP) {
-    number = eq_exp->calc_number();
-  } else if (kind == ExpAST::Kind::L_AND_EXP) {
-    number = l_and_exp->calc_number() && eq_exp->calc_number() ? 1 : 0;
-  } else {
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::EQ_EXP) {
+      return eq_exp->calc_number();
+    }
+    if (kind == ExpAST::Kind::L_AND_EXP) {
+      return l_and_exp->calc_number() && eq_exp->calc_number() ? 1 : 0;
+    }
     assert(false);
-  }
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    return 0;
+  });
 }
 
 int LOrExpAST::calc_number() {
-  if (kind == ExpAST::Kind::NUMBER) {
-    return number;
-  } else if (kind == ExpAST::Kind::L_AND_EXP) {
-    number = l_and_exp->calc_number();
-  } else if (kind == ExpAST::Kind::L_OR_EXP) {
-    number = l_or_exp->calc_number() || l_and_exp->calc_number() ? 1 : 0;
-  } else {
+  return calc_number_impl(*this, [&]() {
+    if (kind == ExpAST::Kind::L_AND_EXP) {
+      return l_and_exp->calc_number();
+    }
+    if (kind == ExpAST::Kind::L_OR_EXP) {
+      return l_or_exp->calc_number() || l_and_exp->calc_number() ? 1 : 0;
+    }
     assert(false);
-  }
-
-  kind = ExpAST::Kind::NUMBER;
-  return number;
+    return 0;
+  });
 }

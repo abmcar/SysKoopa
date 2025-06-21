@@ -26,6 +26,9 @@ private:
   std::string getReg();
   int getNextId();
   std::string idToAddr(int id);
+  template <typename T>
+  std::string getAddrImpl(const T &obj,
+                          std::unordered_map<const T *, int> &map);
 
   // 对象到id的映射
   std::unordered_map<const koopa_raw_binary_t *, int> raw_bin_id_map;
