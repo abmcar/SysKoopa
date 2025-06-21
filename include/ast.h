@@ -3,7 +3,6 @@
 #define AST_H
 
 #include <iostream>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,131 +23,12 @@ enum class LogicalOpKind {
   LessEqual
 };
 
+
 class BaseAST;
 class ExpAST;
 class DefAST;
 
-class SymbolTable {
-public:
-  enum class DefType { CONST, VAR_IDENT, VAR_EXP };
-  static SymbolTable &getInstance() {
-    static SymbolTable instance;
-    return instance;
-  }
-
-  std::map<std::string, int> val_map;
-  std::map<std::string, std::string> type_map;
-  std::map<std::string, DefType> def_type_map;
-  std::map<std::string, ExpAST *> exp_val_map;
-
-  std::map<std::string, std::string> lval_ident_map;
-  std::map<std::string, bool> is_ident_alloc_map;
-  std::map<std::string, int> ident_var_map;
-
-  std::string get_var_ident(const std::string ident) {
-    ident_var_map[ident]++;
-    std::string var_ident = "%" + ident + std::to_string(ident_var_map[ident]);
-    return var_ident;
-  }
-
-  bool is_var_defined(const std::string &ident) {
-    if (def_type_map.find(ident) == def_type_map.end()) {
-      return false;
-    }
-    if (def_type_map[ident] == DefType::VAR_EXP ||
-        def_type_map[ident] == DefType::VAR_IDENT) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-};
-
-class SymbolTableManger {
-public:
-  static SymbolTableManger &getInstance() {
-    static SymbolTableManger instance;
-    return instance;
-  }
-
-  std::vector<SymbolTable> symbol_table_stack;
-  std::map<BaseAST *, SymbolTable> stmt_table_map;
-  std::map<std::string, int> ident_count_map;
-
-  ExpAST * get_exp(const std::string &ident) {
-    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-      if (table->is_ident_alloc_map[ident]) {
-        return table->exp_val_map[ident];
-      }
-    }
-    assert(false);
-  }
-
-  int get_val(const std::string &ident) {
-    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-      if (table->is_ident_alloc_map[ident]) {
-        return table->val_map[ident];
-      }
-    }
-    assert(false);
-  }
-
-  SymbolTable::DefType get_def_type(const std::string &ident) {
-    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-      if (table->is_ident_alloc_map[ident]) {
-        return table->def_type_map[ident];
-      }
-    }
-    assert(false);
-  }
-
-  std::string get_ident(const std::string &ident) {
-    for (auto table = symbol_table_stack.rbegin(); table != symbol_table_stack.rend(); table++) {
-      if (table->is_ident_alloc_map[ident]) {
-        return table->lval_ident_map[ident];
-      }
-    }
-    assert(false);
-  }
-
-  void alloc_ident(const std::string &ident) {
-    get_back_table().is_ident_alloc_map[ident] = true;
-  }
-
-  std::string get_lval_ident(const std::string &ident) {
-    return ident + std::to_string(ident_count_map[ident]++);
-  }
-
-  void push_symbol_table() { symbol_table_stack.push_back(SymbolTable()); }
-
-  void alloc_stmt_table(BaseAST *stmt) {
-    stmt_table_map[stmt] = symbol_table_stack.back();
-  }
-
-  void use_stmt_table(BaseAST *stmt) {
-    symbol_table_stack.push_back(stmt_table_map[stmt]);
-  }
-
-  void pop_symbol_table() { symbol_table_stack.pop_back(); }
-
-  bool is_var_defined(const std::string &ident) {
-    for (auto symbol_table = symbol_table_stack.rbegin();
-         symbol_table != symbol_table_stack.rend(); symbol_table++) {
-      if (symbol_table->is_var_defined(ident)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  SymbolTable &get_stmt_table(BaseAST *stmt) {
-    return stmt_table_map[stmt];
-  }
-
-  SymbolTable &get_back_table() {
-    return symbol_table_stack.back();
-  }
-};
+#include "symbol_table.h"
 
 class IRGenerator {
 public:
