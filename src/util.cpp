@@ -45,4 +45,12 @@ void modify_sp(int offset, std::stringstream &oss) {
   } else {
     oss << "  addi sp, sp, " << offset << "\n";
   }
+
+}
+
+std::string get_label(std::string name) {
+  if (name.size() > 0) {
+    return name.substr(1, name.size() - 1);
+  }
+  return name;
 }

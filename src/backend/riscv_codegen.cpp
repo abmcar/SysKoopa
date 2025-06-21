@@ -224,6 +224,10 @@ void CodeGen::Visit(const koopa_raw_basic_block_t &bb) {
   // 执行一些其他的必要操作
   // ...
   // 访问所有指令
+  std::string label = get_label(bb->name);
+  if (label != "entry") {
+    oss << label << ":\n";
+  }
   Visit(bb->insts);
 }
 
@@ -254,6 +258,14 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     break;
   case KOOPA_RVT_ALLOC:
     // 访问 alloc 指令
+    break;
+  case KOOPA_RVT_BRANCH:
+    // 访问 branch 指令
+    Visit(kind.data.branch);
+    break;
+  case KOOPA_RVT_JUMP:
+    // 访问 jump 指令
+    Visit(kind.data.jump);
     break;
   default:
     // 其他类型暂时遇不到
@@ -366,6 +378,19 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
   oss << "  sw " << val_addr << ", " << dest_offset << "(sp)\n";
   addr_manager.freeReg(val_addr);
   addr_manager.freeId(store.value);
+}
+
+void CodeGen::Visit(const koopa_raw_branch_t &branch) {
+  std::string cond_addr = addr_manager.getAddr(branch.cond);
+  cmd_li(branch.cond, cond_addr);
+  oss << "  bnez " << cond_addr << ", " << get_label(branch.true_bb->name) << "\n";
+  oss << "  j " << get_label(branch.false_bb->name) << "\n";
+  addr_manager.freeReg(cond_addr);
+}
+
+void CodeGen::Visit(const koopa_raw_jump_t &jump) {
+  oss << "  j " << get_label(jump.target->name) << "\n";
+  // oss << "jumpTest\n";
 }
 
 void CodeGen::cmd_li(const koopa_raw_value_t &value,

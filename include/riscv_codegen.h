@@ -90,6 +90,8 @@ private:
   void Visit(const koopa_raw_binary_t &);
   void Visit(const koopa_raw_load_t &);
   void Visit(const koopa_raw_store_t &);
+  void Visit(const koopa_raw_branch_t &);
+  void Visit(const koopa_raw_jump_t &);
   void cmd_li(const koopa_raw_value_t &value, const std::string &res_addr);
   int32_t get_value(const koopa_raw_value_t);
   void print_num(int num);

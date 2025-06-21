@@ -15,4 +15,5 @@ std::string get_koopa_exp_reg(ExpAST *exp);
 std::string get_koopa_logical_exp_reg(ExpAST *exp);
 void pushup_exp_reg(ExpAST *exp, ExpAST *parent);
 void modify_sp(int offset, std::stringstream &oss);
+std::string get_label(std::string name);
 #endif // UTIL_H
