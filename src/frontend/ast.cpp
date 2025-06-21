@@ -96,6 +96,15 @@ void StmtAST::Dump() const {
     exp->Dump();
   } else if (kind == StmtAST::Kind::EMPTY_STMT) {
     std::cout << "EMPTY_STMT";
+  } else if (kind == StmtAST::Kind::IF_STMT) {
+    std::cout << "IF_STMT, ";
+    if_exp->Dump();
+    if_stmt->Dump();
+  } else if (kind == StmtAST::Kind::IF_ELSE_STMT) {
+    std::cout << "IF_ELSE_STMT, ";
+    if_exp->Dump();
+    if_stmt->Dump();
+    else_stmt->Dump();
   }
   std::cout << " }";
 }
@@ -279,7 +288,9 @@ void VarDeclAST::print(std::ostream &os) {
 }
 
 void VarDefAST::print(std::ostream &os) {
-  std::string ident = SymbolTableManger::getInstance().get_back_table().lval_ident_map[this->ident];
+  std::string ident = SymbolTableManger::getInstance()
+                          .get_back_table()
+                          .lval_ident_map[this->ident];
   os << "  @" + ident << " = alloc i32\n";
   if (kind == DefAST::Kind::VAR_DEF) {
     init_val->print(os);
@@ -314,12 +325,16 @@ void BlockItemAST::print(std::ostream &os) {
 
 void StmtAST::print(std::ostream &os) {
   if (kind == StmtAST::Kind::RETURN_STMT) {
+    if (IRGenerator::getInstance().is_return_map[os.tellp()]) {
+      return;
+    }
     exp->print(os);
     if (exp != nullptr) {
       os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
     } else {
       os << "  ret\n";
     }
+    IRGenerator::getInstance().is_return_map[os.tellp()] = true;
   } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
     r_exp->print(os);
     std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
@@ -329,6 +344,38 @@ void StmtAST::print(std::ostream &os) {
   } else if (kind == StmtAST::Kind::EXP_STMT) {
     exp->print(os);
   } else if (kind == StmtAST::Kind::EMPTY_STMT) {
+  } else if (kind == StmtAST::Kind::IF_STMT) {
+    if_exp->print(os);
+    int if_count = IRGenerator::getInstance().getNextIfCount();
+    os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
+       << ", %end_" << if_count << "\n";
+    os << "%then_" << if_count << ":\n";
+    if_stmt->print(os);
+    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+      os << "  jump %end_" << if_count << "\n";
+    }
+    os << "%end_" << if_count << ":\n";
+  } else if (kind == StmtAST::Kind::IF_ELSE_STMT) {
+    if_exp->print(os);
+    int return_count = 0;
+    int if_count = IRGenerator::getInstance().getNextIfCount();
+    os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
+       << ", %else_" << if_count << "\n";
+    os << "%then_" << if_count << ":\n";
+    if_stmt->print(os);
+    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+      os << "  jump %end_" << if_count << "\n";
+      return_count++;
+    }
+    os << "%else_" << if_count << ":\n";
+    else_stmt->print(os);
+    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+      os << "  jump %end_" << if_count << "\n";
+      return_count++;
+    }
+    if (return_count != 0) {
+      os << "%end_" << if_count << ":\n";
+    }
   }
 }
 
@@ -442,6 +489,8 @@ void LOrExpAST::print(std::ostream &os) {
     reg = IRGenerator::getInstance().getNextReg();
     os << "  %" << reg << " = or " << get_koopa_logical_exp_reg(l_or_exp.get())
        << ", " << get_koopa_logical_exp_reg(l_and_exp.get()) << "\n";
+    reg = IRGenerator::getInstance().getNextReg();
+    os << "  %" << reg << " = gt %" << reg-1 << ", 0\n";
   }
 }
 
@@ -456,6 +505,8 @@ void LAndExpAST::print(std::ostream &os) {
     os << "  %" << reg << " = and "
        << get_koopa_logical_exp_reg(l_and_exp.get()) << ", "
        << get_koopa_logical_exp_reg(eq_exp.get()) << "\n";
+    reg = IRGenerator::getInstance().getNextReg();
+    os << "  %" << reg << " = gt %" << reg-1 << ", 0\n";
   }
 }
 

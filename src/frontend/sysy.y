@@ -48,10 +48,13 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST 
+%token INT RETURN CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
+
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDecl VarDecl
@@ -296,7 +299,7 @@ BlockItem
   }
   ;
 
-// Stmt ::= "return" [Exp] ";" | LVal "=" Exp ";" | Block | [Exp] ";";
+// Stmt ::= "return" [Exp] ";" | LVal "=" Exp ";" | Block | [Exp] ";" | "if" "(" [Exp] ")" Stmt [ "else" Stmt ];
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
@@ -338,6 +341,21 @@ Stmt
   | ';' {
     auto ast = new StmtAST();
     ast->kind = StmtAST::Kind::EMPTY_STMT;
+    $$ = ast;
+  }
+  | IF '(' Exp ')' Stmt %prec LOWER_THAN_ELSE {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::IF_STMT;
+    ast->if_exp = unique_ptr<ExpAST>($3);
+    ast->if_stmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' Stmt ELSE Stmt {
+    auto ast = new StmtAST();
+    ast->kind = StmtAST::Kind::IF_ELSE_STMT;
+    ast->if_exp = unique_ptr<ExpAST>($3);
+    ast->if_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>($7);
     $$ = ast;
   }
   ;

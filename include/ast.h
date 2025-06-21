@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 #ifndef AST_H
 #define AST_H
 
@@ -38,11 +39,14 @@ public:
   }
 
   int getNextReg() { return reg_counter++; }
+  int getNextIfCount() { return if_counter++; }
   void reset() { reg_counter = 0; }
+  std::map<std::streampos, bool> is_return_map;
 
 private:
-  IRGenerator() : reg_counter(0) {}
+  IRGenerator() : reg_counter(0), if_counter(0) {}
   int reg_counter;
+  int if_counter;
 };
 
 class BaseAST {
@@ -153,12 +157,15 @@ class ExpAST;
 
 class StmtAST : public BaseAST {
 public:
-  enum Kind { RETURN_STMT, ASSIGN_STMT, BLOCK_STMT, EXP_STMT, EMPTY_STMT };
+  enum Kind { RETURN_STMT, ASSIGN_STMT, BLOCK_STMT, EXP_STMT, EMPTY_STMT, IF_STMT, IF_ELSE_STMT };
   Kind kind;
   std::unique_ptr<ExpAST> exp;
   std::string l_val;
   std::unique_ptr<ExpAST> r_exp;
   std::unique_ptr<BaseAST> block;
+  std::unique_ptr<ExpAST> if_exp;
+  std::unique_ptr<BaseAST> if_stmt;
+  std::unique_ptr<BaseAST> else_stmt;
   void Dump() const override;
   void print(std::ostream &os) override;
 };
