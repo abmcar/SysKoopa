@@ -4,6 +4,7 @@
   #include <memory>
   #include <string>
   #include "ast.h"
+  #include "symbol_table.h"
 }
 
 %{
@@ -12,6 +13,7 @@
 #include <memory>
 #include <string>
 #include "ast.h"
+#include "symbol_table.h"
 
 // 声明 lexer 函数和错误处理函数
 int yylex();
