@@ -345,7 +345,9 @@ void StmtAST::print(std::ostream &os) {
     exp->print(os);
   } else if (kind == StmtAST::Kind::EMPTY_STMT) {
   } else if (kind == StmtAST::Kind::IF_STMT) {
+    IRManager::getInstance().is_in_if = true;
     if_exp->print(os);
+    IRManager::getInstance().is_in_if = false;
     int if_count = IRManager::getInstance().getNextIfCount();
     os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
        << ", %end_" << if_count << "\n";
@@ -356,7 +358,11 @@ void StmtAST::print(std::ostream &os) {
     }
     os << "%end_" << if_count << ":\n";
   } else if (kind == StmtAST::Kind::IF_ELSE_STMT) {
+    IRManager::getInstance().is_in_if = true;
+    IRManager::getInstance().is_in_if_else = true;
     if_exp->print(os);
+    IRManager::getInstance().is_in_if = false;
+    IRManager::getInstance().is_in_if_else = false;
     int return_count = 0;
     int if_count = IRManager::getInstance().getNextIfCount();
     os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
@@ -485,6 +491,16 @@ void LOrExpAST::print(std::ostream &os) {
     pushup_exp_reg(l_and_exp.get(), this);
   } else {
     l_or_exp->print(os);
+    if (IRManager::getInstance().is_in_if) {
+      int tmp_reg = IRManager::getInstance().getNextReg();
+      std::string next_pos = "%end_" + std::to_string(IRManager::getInstance().getNowIfCount());
+      if (IRManager::getInstance().is_in_if_else) {
+        next_pos = "%else_" + std::to_string(IRManager::getInstance().getNowIfCount());
+      }
+      os << "  br " << get_koopa_exp_reg(l_or_exp.get()) << ", %continue_"
+         << tmp_reg << ", " << next_pos << "\n";
+      os << "%continue_" << tmp_reg << ":\n";
+    }
     l_and_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
     os << "  %" << reg << " = or " << get_koopa_logical_exp_reg(l_or_exp.get())
@@ -500,6 +516,18 @@ void LAndExpAST::print(std::ostream &os) {
     pushup_exp_reg(eq_exp.get(), this);
   } else {
     l_and_exp->print(os);
+    if (IRManager::getInstance().is_in_if) {
+      int tmp_reg = IRManager::getInstance().getNextReg();
+      std::string next_pos = "%end_" + std::to_string(IRManager::getInstance().getNowIfCount());
+      if (IRManager::getInstance().is_in_if_else) {
+        next_pos = "%else_" + std::to_string(IRManager::getInstance().getNowIfCount());
+      }
+      os << "  %" << tmp_reg << " = ne " << get_koopa_exp_reg(l_and_exp.get())
+         << ", 0\n";
+      os << "  br %" << tmp_reg << ", %continue_"
+         << tmp_reg << ", " << next_pos << "\n";
+      os << "%continue_" << tmp_reg << ":\n";
+    }
     eq_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
     os << "  %" << reg << " = and "

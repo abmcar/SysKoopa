@@ -40,9 +40,11 @@ public:
 
   int getNextReg() { return reg_counter++; }
   int getNextIfCount() { return if_counter++; }
+  int getNowIfCount() { return if_counter; }
   void reset() { reg_counter = 0; }
   std::map<std::streampos, bool> is_return_map;
   bool is_in_if = false;
+  bool is_in_if_else = false;
 
 private:
   IRManager() : reg_counter(0), if_counter(0) {}
