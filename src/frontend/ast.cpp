@@ -325,7 +325,7 @@ void BlockItemAST::print(std::ostream &os) {
 
 void StmtAST::print(std::ostream &os) {
   if (kind == StmtAST::Kind::RETURN_STMT) {
-    if (IRGenerator::getInstance().is_return_map[os.tellp()]) {
+    if (IRManager::getInstance().is_return_map[os.tellp()]) {
       return;
     }
     exp->print(os);
@@ -334,7 +334,7 @@ void StmtAST::print(std::ostream &os) {
     } else {
       os << "  ret\n";
     }
-    IRGenerator::getInstance().is_return_map[os.tellp()] = true;
+    IRManager::getInstance().is_return_map[os.tellp()] = true;
   } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
     r_exp->print(os);
     std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
@@ -346,30 +346,30 @@ void StmtAST::print(std::ostream &os) {
   } else if (kind == StmtAST::Kind::EMPTY_STMT) {
   } else if (kind == StmtAST::Kind::IF_STMT) {
     if_exp->print(os);
-    int if_count = IRGenerator::getInstance().getNextIfCount();
+    int if_count = IRManager::getInstance().getNextIfCount();
     os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
        << ", %end_" << if_count << "\n";
     os << "%then_" << if_count << ":\n";
     if_stmt->print(os);
-    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+    if (!IRManager::getInstance().is_return_map[os.tellp()]) {
       os << "  jump %end_" << if_count << "\n";
     }
     os << "%end_" << if_count << ":\n";
   } else if (kind == StmtAST::Kind::IF_ELSE_STMT) {
     if_exp->print(os);
     int return_count = 0;
-    int if_count = IRGenerator::getInstance().getNextIfCount();
+    int if_count = IRManager::getInstance().getNextIfCount();
     os << "  br " << get_koopa_exp_reg(if_exp.get()) << ", %then_" << if_count
        << ", %else_" << if_count << "\n";
     os << "%then_" << if_count << ":\n";
     if_stmt->print(os);
-    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+    if (!IRManager::getInstance().is_return_map[os.tellp()]) {
       os << "  jump %end_" << if_count << "\n";
       return_count++;
     }
     os << "%else_" << if_count << ":\n";
     else_stmt->print(os);
-    if (!IRGenerator::getInstance().is_return_map[os.tellp()]) {
+    if (!IRManager::getInstance().is_return_map[os.tellp()]) {
       os << "  jump %end_" << if_count << "\n";
       return_count++;
     }
@@ -408,7 +408,7 @@ void PrimaryExpAST::print(std::ostream &os) {
       number = SymbolTableManger::getInstance().get_val(l_val);
       kind = ExpAST::Kind::NUMBER;
     } else {
-      reg = IRGenerator::getInstance().getNextReg();
+      reg = IRManager::getInstance().getNextReg();
       std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
       os << "  %" << reg << " = load @" + ident << "\n";
     }
@@ -426,12 +426,12 @@ void UnaryExpAST::print(std::ostream &os) {
       pushup_exp_reg(unary_exp.get(), this);
       break;
     case UnaryOpKind::Minus:
-      reg = IRGenerator::getInstance().getNextReg();
+      reg = IRManager::getInstance().getNextReg();
       os << "  %" << reg << " = sub 0, " << get_koopa_exp_reg(unary_exp.get())
          << "\n";
       break;
     case UnaryOpKind::Not:
-      reg = IRGenerator::getInstance().getNextReg();
+      reg = IRManager::getInstance().getNextReg();
       os << "  %" << reg << " = eq " << get_koopa_exp_reg(unary_exp.get())
          << ", 0\n";
       break;
@@ -446,7 +446,7 @@ void AddExpAST::print(std::ostream &os) {
   } else {
     mul_exp->print(os);
     add_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
 
     if (add_op == AddOpKind::Plus) {
       os << "  %" << reg << " = add " << get_koopa_exp_reg(add_exp.get())
@@ -465,7 +465,7 @@ void MulExpAST::print(std::ostream &os) {
   } else {
     mul_exp->print(os);
     unary_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
     if (mul_op == MulOpKind::Mul) {
       os << "  %" << reg << " = mul " << get_koopa_exp_reg(mul_exp.get())
          << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
@@ -486,11 +486,11 @@ void LOrExpAST::print(std::ostream &os) {
   } else {
     l_or_exp->print(os);
     l_and_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
     os << "  %" << reg << " = or " << get_koopa_logical_exp_reg(l_or_exp.get())
        << ", " << get_koopa_logical_exp_reg(l_and_exp.get()) << "\n";
-    reg = IRGenerator::getInstance().getNextReg();
-    os << "  %" << reg << " = gt %" << reg-1 << ", 0\n";
+    reg = IRManager::getInstance().getNextReg();
+    os << "  %" << reg << " = gt %" << reg - 1 << ", 0\n";
   }
 }
 
@@ -501,12 +501,12 @@ void LAndExpAST::print(std::ostream &os) {
   } else {
     l_and_exp->print(os);
     eq_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
     os << "  %" << reg << " = and "
        << get_koopa_logical_exp_reg(l_and_exp.get()) << ", "
        << get_koopa_logical_exp_reg(eq_exp.get()) << "\n";
-    reg = IRGenerator::getInstance().getNextReg();
-    os << "  %" << reg << " = gt %" << reg-1 << ", 0\n";
+    reg = IRManager::getInstance().getNextReg();
+    os << "  %" << reg << " = gt %" << reg - 1 << ", 0\n";
   }
 }
 
@@ -517,7 +517,7 @@ void EqExpAST::print(std::ostream &os) {
   } else {
     eq_exp->print(os);
     rel_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
     if (logical_op == LogicalOpKind::Equal) {
       os << "  %" << reg << " = eq " << get_koopa_exp_reg(eq_exp.get()) << ", "
          << get_koopa_exp_reg(rel_exp.get()) << "\n";
@@ -535,7 +535,7 @@ void RelExpAST::print(std::ostream &os) {
   } else {
     rel_exp->print(os);
     add_exp->print(os);
-    reg = IRGenerator::getInstance().getNextReg();
+    reg = IRManager::getInstance().getNextReg();
     if (logical_op == LogicalOpKind::Greater) {
       os << "  %" << reg << " = gt " << get_koopa_exp_reg(rel_exp.get()) << ", "
          << get_koopa_exp_reg(add_exp.get()) << "\n";

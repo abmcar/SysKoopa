@@ -31,10 +31,10 @@ class DefAST;
 
 #include "symbol_table.h"
 
-class IRGenerator {
+class IRManager {
 public:
-  static IRGenerator &getInstance() {
-    static IRGenerator instance;
+  static IRManager &getInstance() {
+    static IRManager instance;
     return instance;
   }
 
@@ -42,9 +42,10 @@ public:
   int getNextIfCount() { return if_counter++; }
   void reset() { reg_counter = 0; }
   std::map<std::streampos, bool> is_return_map;
+  bool is_in_if = false;
 
 private:
-  IRGenerator() : reg_counter(0), if_counter(0) {}
+  IRManager() : reg_counter(0), if_counter(0) {}
   int reg_counter;
   int if_counter;
 };
