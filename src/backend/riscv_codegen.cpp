@@ -2,8 +2,6 @@
 #include "riscv_codegen.h"
 #include "koopa.h"
 #include "util.h"
-#include <cassert>
-#include <iostream>
 
 int AddrManager::getNextId() { return id_counter++; }
 

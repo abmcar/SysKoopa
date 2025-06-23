@@ -73,16 +73,12 @@ using namespace std;
 
 // CompUnit ::= [CompUnit] FuncDef
 CompUnit
-  : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def_list = new vector<unique_ptr<BaseAST>>();
-    comp_unit->func_def_list->push_back(unique_ptr<BaseAST>($1));
-    ast = std::move(comp_unit);
+  : {
+    SymbolTableManger::getInstance().push_symbol_table();
   }
-  | FuncDefList FuncDef {
+  FuncDefList {
     auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def_list = $1;
-    comp_unit->func_def_list->push_back(unique_ptr<BaseAST>($2));
+    comp_unit->func_def_list = $2;
     ast = std::move(comp_unit);
   }
   ;
@@ -95,10 +91,7 @@ FuncDefList
     $$ = vec;
   }
   | FuncDefList FuncDef {
-    auto vec = new vector<unique_ptr<BaseAST>>();
-    for (auto &item : *$1) {
-      vec->push_back(std::move(item));
-    }
+    auto vec = $1;
     vec->push_back(unique_ptr<BaseAST>($2));
     $$ = vec;
   }

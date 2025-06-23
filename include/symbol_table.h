@@ -11,7 +11,6 @@ class FuncFParamAST;
 class SymbolTable {
 public:
   enum class DefType { CONST, VAR_IDENT, VAR_EXP, FUNC_VOID, FUNC_INT};
-  static SymbolTable &getInstance();
 
   std::map<std::string, int> val_map;
   std::map<std::string, std::string> type_map;
@@ -58,7 +57,7 @@ private:
   SymbolTableManger() = default;
   SymbolTable *find_table(const std::string &ident);
 
-  std::vector<SymbolTable> symbol_table_stack = {SymbolTable()};
-  std::map<BaseAST *, SymbolTable> stmt_table_map;
+  std::vector<SymbolTable *> symbol_table_stack;
+  std::map<BaseAST *, SymbolTable *> stmt_table_map;
   std::map<std::string, int> ident_count_map;
 };

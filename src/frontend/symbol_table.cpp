@@ -1,11 +1,6 @@
 #include "symbol_table.h"
 #include "ast.h"
 
-SymbolTable &SymbolTable::getInstance() {
-  static SymbolTable instance;
-  return instance;
-}
-
 std::string SymbolTable::get_var_ident(const std::string ident) {
   ident_var_map[ident]++;
   std::string var_ident = "%" + ident + std::to_string(ident_var_map[ident]);
@@ -32,8 +27,8 @@ SymbolTableManger &SymbolTableManger::getInstance() {
 SymbolTable *SymbolTableManger::find_table(const std::string &ident) {
   for (auto table = symbol_table_stack.rbegin();
        table != symbol_table_stack.rend(); ++table) {
-    if (table->is_ident_alloc_map[ident]) {
-      return &(*table);
+    if ((*table)->is_ident_alloc_map[ident]) {
+      return *table;
     }
   }
   return nullptr;
@@ -66,7 +61,10 @@ std::string SymbolTableManger::get_lval_ident(const std::string &ident) {
 }
 
 void SymbolTableManger::push_symbol_table() {
-  symbol_table_stack.push_back(SymbolTable());
+  symbol_table_stack.push_back(new SymbolTable());
+  std::cout << "push_symbol_table" << std::endl;
+  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
+            << std::endl;
 }
 
 void SymbolTableManger::alloc_stmt_table(BaseAST *stmt) {
@@ -75,14 +73,22 @@ void SymbolTableManger::alloc_stmt_table(BaseAST *stmt) {
 
 void SymbolTableManger::use_stmt_table(BaseAST *stmt) {
   symbol_table_stack.push_back(stmt_table_map[stmt]);
+  std::cout << "use_stmt_table" << std::endl;
+  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
+            << std::endl;
 }
 
-void SymbolTableManger::pop_symbol_table() { symbol_table_stack.pop_back(); }
+void SymbolTableManger::pop_symbol_table() {
+  symbol_table_stack.pop_back();
+  std::cout << "pop_symbol_table" << std::endl;
+  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
+            << std::endl;
+}
 
 bool SymbolTableManger::is_var_defined(const std::string &ident) {
   for (auto table = symbol_table_stack.rbegin();
        table != symbol_table_stack.rend(); ++table) {
-    if (table->is_var_defined(ident)) {
+    if ((*table)->is_var_defined(ident)) {
       return true;
     }
   }
@@ -90,12 +96,11 @@ bool SymbolTableManger::is_var_defined(const std::string &ident) {
 }
 
 void SymbolTableManger::alloc_func_fparams(
-    const std::string &ident,
-    std::vector<FuncFParamAST> func_fparams) {
+    const std::string &ident, std::vector<FuncFParamAST> func_fparams) {
   get_back_table().func_fparams_map[ident] = std::move(func_fparams);
 }
 
-std::vector<FuncFParamAST> 
+std::vector<FuncFParamAST>
 SymbolTableManger::get_func_fparams(const std::string &ident) {
   auto table = find_table(ident);
   assert(table);
@@ -114,9 +119,10 @@ void SymbolTableManger::alloc_func_has_fparams(const std::string &ident,
 }
 
 SymbolTable &SymbolTableManger::get_stmt_table(BaseAST *stmt) {
-  return stmt_table_map[stmt];
+  return *stmt_table_map[stmt];
 }
 
 SymbolTable &SymbolTableManger::get_back_table() {
-  return symbol_table_stack.back();
+  assert(!symbol_table_stack.empty());
+  return *symbol_table_stack.back();
 }

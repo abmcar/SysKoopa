@@ -1,7 +1,5 @@
 #include "ast.h"
-#include "symbol_table.h"
 #include "util.h"
-#include <string>
 
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   ast.print(os);
@@ -41,7 +39,6 @@ void FuncDefAST::print(std::ostream &os) {
   os << "%"
      << "entry"
      << ":\n";
-
   SymbolTableManger::getInstance().use_stmt_table(this->block.get());
   if (func_fparam_list != nullptr) {
     auto func_fparams =
@@ -142,7 +139,9 @@ void StmtAST::print(std::ostream &os) {
     std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
     os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident << "\n";
   } else if (kind == StmtAST::Kind::BLOCK_STMT) {
+    SymbolTableManger::getInstance().use_stmt_table(block.get());
     block->print(os);
+    SymbolTableManger::getInstance().pop_symbol_table();
   } else if (kind == StmtAST::Kind::EXP_STMT) {
     exp->print(os);
   } else if (kind == StmtAST::Kind::EMPTY_STMT) {
