@@ -328,6 +328,10 @@ void BlockItemAST::print(std::ostream &os) {
 }
 
 void StmtAST::print(std::ostream &os) {
+  if (IRManager::getInstance().is_in_while &&
+      IRManager::getInstance().is_return_map[os.tellp()]) {
+    return;
+  }
   if (kind == StmtAST::Kind::RETURN_STMT) {
     if (IRManager::getInstance().is_return_map[os.tellp()]) {
       return;
@@ -387,6 +391,7 @@ void StmtAST::print(std::ostream &os) {
       os << "%end_" << if_count << ":\n";
     }
   } else if (kind == StmtAST::Kind::WHILE_STMT) {
+    IRManager::getInstance().enter_while();
     int while_count = IRManager::getInstance().getNextWhileCount();
     os << "  jump %entry_while_" << while_count << "\n";
     os << "%entry_while_" << while_count << ":\n";
@@ -399,6 +404,15 @@ void StmtAST::print(std::ostream &os) {
       os << "  jump %entry_while_" << while_count << "\n";
     }
     os << "%while_end_" << while_count << ":\n";
+    IRManager::getInstance().exit_while();
+  } else if (kind == StmtAST::Kind::BREAK_STMT) {
+    os << "  jump %while_end_" << IRManager::getInstance().getNowWhileCount()
+       << "\n";
+    IRManager::getInstance().is_return_map[os.tellp()] = true;
+  } else if (kind == StmtAST::Kind::CONTINUE_STMT) {
+    os << "  jump %entry_while_" << IRManager::getInstance().getNowWhileCount()
+       << "\n";
+    IRManager::getInstance().is_return_map[os.tellp()] = true;
   }
 }
 

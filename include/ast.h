@@ -41,16 +41,21 @@ public:
   int getNextIfCount() { return if_counter++; }
   int getNextWhileCount() { return while_counter++; }
   int getNowIfCount() { return if_counter; }
+  int getNowWhileCount() { return now_while_count - 1; }
+  void exit_while() { now_while_count--; is_in_while = false; }
+  void enter_while() { now_while_count++; is_in_while = true; }
   void reset() { reg_counter = 0; }
   std::map<std::streampos, bool> is_return_map;
   bool is_in_if = false;
   bool is_in_if_else = false;
+  bool is_in_while = false;
 
 private:
-  IRManager() : reg_counter(0), if_counter(0), while_counter(0) {}
+  IRManager() : reg_counter(0), if_counter(0), while_counter(0), now_while_count(0) {}
   int reg_counter;
   int if_counter;
   int while_counter;
+  int now_while_count;
 };
 
 class BaseAST {
@@ -169,7 +174,9 @@ public:
     EMPTY_STMT,
     IF_STMT,
     IF_ELSE_STMT,
-    WHILE_STMT
+    WHILE_STMT,
+    BREAK_STMT,
+    CONTINUE_STMT
   };
   Kind kind;
   std::unique_ptr<ExpAST> exp;
