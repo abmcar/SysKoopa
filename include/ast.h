@@ -61,7 +61,6 @@ private:
 class BaseAST {
 public:
   virtual ~BaseAST() = default;
-  virtual void Dump() const = 0;
   virtual void print(std::ostream &os) {};
   friend std::ostream &operator<<(std::ostream &os, BaseAST &ast);
 };
@@ -69,7 +68,6 @@ public:
 class CompUnitAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> func_def;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -78,14 +76,12 @@ public:
   std::unique_ptr<BaseAST> func_type;
   std::string ident;
   std::unique_ptr<BaseAST> block;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class FuncTypeAST : public BaseAST {
 public:
   std::string func_type;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -95,7 +91,6 @@ public:
   Kind kind;
   std::unique_ptr<BaseAST> const_decl;
   std::unique_ptr<BaseAST> var_decl;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -103,14 +98,12 @@ class ConstDeclAST : public BaseAST {
 public:
   std::string b_type;
   std::vector<std::unique_ptr<DefAST>> *const_def_list;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class BTypeAST : public BaseAST {
 public:
   std::string b_type;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -119,7 +112,6 @@ public:
   enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT };
   Kind kind;
   std::string ident;
-  void Dump() const override {};
   void print(std::ostream &os) override {};
 };
 
@@ -127,28 +119,24 @@ class VarDeclAST : public BaseAST {
 public:
   std::string b_type;
   std::vector<std::unique_ptr<DefAST>> *var_def_list;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class VarDefAST : public DefAST {
 public:
   std::unique_ptr<ExpAST> init_val;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class ConstDefAST : public DefAST {
 public:
   int const_init_val;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
 class BlockAST : public BaseAST {
 public:
   std::vector<std::unique_ptr<BaseAST>> *block_item_list;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -158,7 +146,6 @@ public:
   Kind kind;
   std::unique_ptr<BaseAST> decl;
   std::unique_ptr<BaseAST> stmt;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -188,7 +175,6 @@ public:
   std::unique_ptr<BaseAST> else_stmt;
   std::unique_ptr<ExpAST> while_exp;
   std::unique_ptr<BaseAST> while_stmt;
-  void Dump() const override;
   void print(std::ostream &os) override;
 };
 
@@ -211,7 +197,6 @@ public:
   Kind kind;
   int number;
   std::unique_ptr<ExpAST> l_or_exp;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int get_reg() const { return reg; }
   bool is_number() const { return kind == Kind::NUMBER; }
@@ -227,7 +212,6 @@ class PrimaryExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> exp;
   std::string l_val;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -236,7 +220,6 @@ class UnaryExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> primary_exp, unary_exp;
   UnaryOpKind unary_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -245,7 +228,6 @@ class AddExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> add_exp, mul_exp;
   AddOpKind add_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -254,7 +236,6 @@ class MulExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> mul_exp, unary_exp;
   MulOpKind mul_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -263,7 +244,6 @@ class LOrExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> l_or_exp, l_and_exp;
   LogicalOpKind logical_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -272,7 +252,6 @@ class LAndExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> l_and_exp, eq_exp;
   LogicalOpKind logical_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -281,7 +260,6 @@ class EqExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> eq_exp, rel_exp;
   LogicalOpKind logical_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
@@ -290,7 +268,6 @@ class RelExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> rel_exp, add_exp;
   LogicalOpKind logical_op;
-  void Dump() const override;
   void print(std::ostream &os) override;
   int calc_number() override;
 };

@@ -32,7 +32,6 @@ int main(int argc, const char *argv[]) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  ast->Dump();
 
   stringstream oss;
   oss << *ast;
