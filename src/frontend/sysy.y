@@ -44,11 +44,13 @@ using namespace std;
   DefAST *def_ast_val;
   std::vector<std::unique_ptr<BaseAST>> *ast_vec_val;
   std::vector<std::unique_ptr<DefAST>> *def_ast_vec_val;
+  std::vector<std::unique_ptr<ExpAST>> *exp_ast_vec_val;
+  std::vector<FuncFParamAST> *func_fparam_ast_vec_val;
 }
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
+%token VOID INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token LOGICAL_OP_GREATER_EQUAL LOGICAL_OP_LESS_EQUAL LOGICAL_OP_EQUAL LOGICAL_OP_NOT_EQUAL LOGICAL_OP_OR LOGICAL_OP_AND LOGICAL_OP_GREATER LOGICAL_OP_LESS
@@ -57,57 +59,117 @@ using namespace std;
 %nonassoc ELSE
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block BlockItem Stmt Decl ConstDecl VarDecl
+%type <ast_val> FuncDef Block BlockItem Stmt Decl ConstDecl VarDecl FuncFParam
 %type <int_val> Number ConstInitVal
-%type <str_val> BType LVal
+%type <str_val> BType LVal FuncType
 %type <unary_op_kind> UnaryOp
 %type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp InitVal
-%type <ast_vec_val> BlockItemList
-%type <def_ast_val> ConstDef VarDef
-%type <def_ast_vec_val> ConstDefList VarDefList
+%type <ast_vec_val> BlockItemList FuncDefList
+%type <def_ast_val> ConstDef VarDef 
+%type <def_ast_vec_val> ConstDefList VarDefList 
+%type <exp_ast_vec_val> FuncRParamList
+%type <func_fparam_ast_vec_val> FuncFParamList
 %%
 
-// 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
-// 之前我们定义了 FuncDef 会返回一个 str_val, 也就是字符串指针
-// 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
-// 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
-// $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
-// CompUnit ::= FuncDef
+// CompUnit ::= [CompUnit] FuncDef
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
-    ast = move(comp_unit);
-    // ast = unique_ptr<string>($1);
+    comp_unit->func_def_list = new vector<unique_ptr<BaseAST>>();
+    comp_unit->func_def_list->push_back(unique_ptr<BaseAST>($1));
+    ast = std::move(comp_unit);
+  }
+  | FuncDefList FuncDef {
+    auto comp_unit = make_unique<CompUnitAST>();
+    comp_unit->func_def_list = $1;
+    comp_unit->func_def_list->push_back(unique_ptr<BaseAST>($2));
+    ast = std::move(comp_unit);
   }
   ;
 
-// FuncDef ::= FuncType IDENT '(' ')' Block;
-// 我们这里可以直接写 '(' 和 ')', 因为之前在 lexer 里已经处理了单个字符的情况
-// 解析完成后, 把这些符号的结果收集起来, 然后拼成一个新的字符串, 作为结果返回
-// $$ 表示非终结符的返回值, 我们可以通过给这个符号赋值的方法来返回结果
-// 你可能会问, FuncType, IDENT 之类的结果已经是字符串指针了
-// 为什么还要用 unique_ptr 接住它们, 然后再解引用, 把它们拼成另一个字符串指针呢
-// 因为所有的字符串指针都是我们 new 出来的, new 出来的内存一定要 delete
-// 否则会发生内存泄漏, 而 unique_ptr 这种智能指针可以自动帮我们 delete
-// 虽然此处你看不出用 unique_ptr 和手动 delete 的区别, 但当我们定义了 AST 之后
-// 这种写法会省下很多内存管理的负担
+// FuncDefList ::= FuncDef | FuncDefList FuncDef;
+FuncDefList
+  : FuncDef {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  | FuncDefList FuncDef {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    for (auto &item : *$1) {
+      vec->push_back(std::move(item));
+    }
+    vec->push_back(unique_ptr<BaseAST>($2));
+    $$ = vec;
+  }
+  ;
+
+// FuncFParamList ::= FuncFParam | FuncFParamList ',' FuncFParam;
+FuncFParamList
+  : FuncFParam {
+    auto vec = new vector<FuncFParamAST>();
+    vec->push_back(*((FuncFParamAST *)$1));
+    $$ = vec;
+  }
+  | FuncFParamList ',' FuncFParam {
+    auto vec = $1;
+    vec->push_back(*((FuncFParamAST *)$3));
+    $$ = vec;
+  }
+  ;
+
+// FuncFParam ::= BType IDENT;
+FuncFParam
+  : BType IDENT {
+    auto ast = new FuncFParamAST();
+    ast->b_type = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  ;
+
+// FuncDef ::= FuncType IDENT '(' [FuncFParamList] ')' Block;
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->func_type = *unique_ptr<string>($1);
     ast->ident= *unique_ptr<string>($2);
+    ast->func_fparam_list = nullptr;
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
+    SymbolTableManger::getInstance().alloc_ident(ast->ident);
+    SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, false);
+    if (ast->func_type == "void") {
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
+    } else {
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+    }
+  }
+  | FuncType IDENT '(' FuncFParamList ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->func_fparam_list = $4;
+    ast->block = unique_ptr<BaseAST>($6);
+    $$ = ast;
+    SymbolTableManger::getInstance().alloc_ident(ast->ident);
+    SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, true);
+    SymbolTableManger::getInstance().alloc_func_fparams(ast->ident, *$4);
+    if (ast->func_type == "void") {
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
+    } else {
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+    }
   }
   ;
 
-// FuncType ::= "int";
+// FuncType ::= "void" | "int";
 FuncType
   : INT {
-    auto ast = new FuncTypeAST();
-    ast->func_type = "int";
-    $$ = ast;
+    $$ = new std::string("int");
+  }
+  | VOID {
+    $$ = new std::string("void");
   }
   ;
 
@@ -166,7 +228,7 @@ VarDefList
     auto vec = new vector<unique_ptr<DefAST>>();
     vec->push_back(unique_ptr<DefAST>($1));
     for (auto &item : *$3) {
-      vec->push_back(move(item));
+      vec->push_back(std::move(item));
     }
     delete $3;
     $$ = vec;
@@ -189,7 +251,6 @@ VarDef
     ast->ident = *unique_ptr<string>($1);
     ast->init_val = unique_ptr<ExpAST>($3);
     SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
-    SymbolTableManger::getInstance().get_back_table().exp_val_map[ast->ident] = ast->init_val.get();
     SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
@@ -220,7 +281,7 @@ ConstDefList
     auto vec = new vector<unique_ptr<DefAST>>();
     vec->push_back(unique_ptr<DefAST>($1));
     for (auto &item : *$3) {
-      vec->push_back(move(item));
+      vec->push_back(std::move(item));
     }
     $$ = vec;
   }
@@ -277,7 +338,7 @@ BlockItemList
     auto vec = new vector<unique_ptr<BaseAST>>();
     vec->push_back(unique_ptr<BaseAST>($1));
     for (auto &item : *$2) {
-      vec->push_back(move(item));
+      vec->push_back(std::move(item));
     }
     $$ = vec;
   }
@@ -331,7 +392,6 @@ Stmt
       assert(false);
     } else {
       SymbolTableManger::getInstance().get_back_table().def_type_map[ast->l_val] = SymbolTable::DefType::VAR_EXP;
-      SymbolTableManger::getInstance().get_back_table().exp_val_map[ast->l_val] = ast->r_exp.get();
     }
     $$ = ast;
   }
@@ -396,7 +456,7 @@ Exp
   }
   ;
 
-// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp;
+// UnaryExp ::= PrimaryExp | UnaryOp UnaryExp | IDENT "(" [FuncRParams] ")" ;
 UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
@@ -410,6 +470,33 @@ UnaryExp
     ast->unary_op = $1;
     ast->unary_exp = unique_ptr<ExpAST>($2);
     $$ = ast;
+  }
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST();
+    ast->kind = ExpAST::Kind::FUNC_CALL_WITHOUT_PARAMS;
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  | IDENT '(' FuncRParamList ')' {
+    auto ast = new UnaryExpAST();
+    ast->kind = ExpAST::Kind::FUNC_CALL_WITH_PARAMS;
+    ast->ident = *unique_ptr<string>($1);
+    ast->func_rparam_list = $3;
+    $$ = ast;
+  }
+  ;
+
+// FuncRParamList ::= FuncRParam | FuncRParamList ',' FuncRParam;
+FuncRParamList
+  : Exp {
+    auto vec = new vector<unique_ptr<ExpAST>>();
+    vec->push_back(unique_ptr<ExpAST>($1));
+    $$ = vec;
+  }
+  | FuncRParamList ',' Exp {
+    auto vec = $1;
+    vec->push_back(unique_ptr<ExpAST>($3));
+    $$ = vec;
   }
   ;
 

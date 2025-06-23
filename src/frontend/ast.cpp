@@ -1,30 +1,66 @@
 #include "ast.h"
-
+#include "symbol_table.h"
+#include "util.h"
+#include <string>
 
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   ast.print(os);
   return os;
 };
 
-void CompUnitAST::print(std::ostream &os) { func_def->print(os); }
+void CompUnitAST::print(std::ostream &os) {
+  for (auto &item : *func_def_list) {
+    item->print(os);
+    os << "\n";
+  }
+}
 
 void FuncDefAST::print(std::ostream &os) {
-  os << "fun @" << this->ident << "("
-     << ")"
-     << ": ";
-  func_type->print(os);
+  os << "fun @" << this->ident << "(";
+  if (func_fparam_list != nullptr) {
+    auto func_fparams =
+        SymbolTableManger::getInstance().get_func_fparams(this->ident);
+    int n = func_fparams.size();
+    for (int i = 0; i < n; i++) {
+      os << "@" << func_fparams[i].ident << ": ";
+      if (func_fparams[i].b_type == "int") {
+        os << "i32";
+      } else {
+        assert(false);
+      }
+      if (i != n - 1) {
+        os << ", ";
+      }
+    }
+  }
+  os << ")";
+  if (func_type == "int") {
+    os << ": i32";
+  }
   os << " {\n";
   os << "%"
      << "entry"
      << ":\n";
-  block->print(os);
-  os << "}";
-}
 
-void FuncTypeAST::print(std::ostream &os) {
-  if (func_type == "int") {
-    os << "i32";
+  SymbolTableManger::getInstance().use_stmt_table(this->block.get());
+  if (func_fparam_list != nullptr) {
+    auto func_fparams =
+        SymbolTableManger::getInstance().get_func_fparams(this->ident);
+    int n = func_fparams.size();
+    for (int i = 0; i < n; i++) {
+      SymbolTableManger::getInstance().alloc_ident(func_fparams[i].ident);
+      SymbolTableManger::getInstance().get_back_table().def_type_map[func_fparams[i].ident] = SymbolTable::DefType::VAR_IDENT;
+      SymbolTableManger::getInstance().get_back_table().lval_ident_map[func_fparams[i].ident] = this->ident + "_" + func_fparams[i].ident;
+      os << "  @" << this->ident << "_" << func_fparams[i].ident << " = alloc i32\n";
+      os << "  store @" << func_fparams[i].ident << ", @" << this->ident << "_" << func_fparams[i].ident << "\n";
+    }
   }
+  block->print(os);
+  SymbolTableManger::getInstance().pop_symbol_table();
+  if (!IRManager::getInstance().is_return_map[os.tellp()]) {
+    os << "  ret\n";
+  }
+  os << "}\n";
 }
 
 void DeclAST::print(std::ostream &os) {
@@ -40,6 +76,8 @@ void ConstDeclAST::print(std::ostream &os) {
     item->print(os);
   }
 }
+
+void FuncFParamAST::print(std::ostream &os) {}
 
 void BTypeAST::print(std::ostream &os) {}
 
@@ -70,11 +108,9 @@ void BlockAST::print(std::ostream &os) {
   if (block_item_list == nullptr) {
     return;
   }
-  SymbolTableManger::getInstance().use_stmt_table(this);
   for (auto &item : *block_item_list) {
     item->print(os);
   }
-  SymbolTableManger::getInstance().pop_symbol_table();
 }
 
 void BlockItemAST::print(std::ostream &os) {
@@ -94,8 +130,8 @@ void StmtAST::print(std::ostream &os) {
     if (IRManager::getInstance().is_return_map[os.tellp()]) {
       return;
     }
-    exp->print(os);
     if (exp != nullptr) {
+      exp->print(os);
       os << "  ret " << get_koopa_exp_reg(exp.get()) << "\n";
     } else {
       os << "  ret\n";
@@ -231,6 +267,37 @@ void UnaryExpAST::print(std::ostream &os) {
          << ", 0\n";
       break;
     }
+  } else if (kind == ExpAST::Kind::FUNC_CALL_WITHOUT_PARAMS) {
+    auto DType = SymbolTableManger::getInstance().get_def_type(ident);
+    if (DType == SymbolTable::DefType::FUNC_VOID) {
+      os << "  call @" << ident << "()\n";
+    } else if (DType == SymbolTable::DefType::FUNC_INT) {
+      reg = IRManager::getInstance().getNextReg();
+      os << "  %" << reg << " = call @" << ident << "()\n";
+    }
+  } else if (kind == ExpAST::Kind::FUNC_CALL_WITH_PARAMS) {
+    auto func_fparams =
+        SymbolTableManger::getInstance().get_func_fparams(ident);
+    if (func_fparams.size() != func_rparam_list->size()) {
+      std::cout
+          << "error: function call with params has wrong number of parameters"
+          << std::endl;
+      exit(1);
+    }
+    std::vector<std::string> reg_list;
+    for (auto &item : *func_rparam_list) {
+      item->print(os);
+      reg_list.push_back(get_koopa_exp_reg(item.get()));
+    }
+    reg = IRManager::getInstance().getNextReg();
+    os << "  %" << reg << " = call @" << ident << "(";
+    for (int i = 0; i < reg_list.size(); i++) {
+      os << reg_list[i];
+      if (i != reg_list.size() - 1) {
+        os << ", ";
+      }
+    }
+    os << ")\n";
   }
 }
 
@@ -370,8 +437,9 @@ void RelExpAST::print(std::ostream &os) {
       break;
     }
     if (op)
-      os << "  %" << reg << " = " << op << " " << get_koopa_exp_reg(rel_exp.get())
-         << ", " << get_koopa_exp_reg(add_exp.get()) << "\n";
+      os << "  %" << reg << " = " << op << " "
+         << get_koopa_exp_reg(rel_exp.get()) << ", "
+         << get_koopa_exp_reg(add_exp.get()) << "\n";
   }
 }
 

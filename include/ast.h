@@ -42,8 +42,14 @@ public:
   int getNextWhileCount() { return while_counter++; }
   int getNowIfCount() { return if_counter; }
   int getNowWhileCount() { return now_while_count - 1; }
-  void exit_while() { now_while_count--; is_in_while = false; }
-  void enter_while() { now_while_count++; is_in_while = true; }
+  void exit_while() {
+    now_while_count--;
+    is_in_while = false;
+  }
+  void enter_while() {
+    now_while_count++;
+    is_in_while = true;
+  }
   void reset() { reg_counter = 0; }
   std::map<std::streampos, bool> is_return_map;
   bool is_in_if = false;
@@ -51,7 +57,8 @@ public:
   bool is_in_while = false;
 
 private:
-  IRManager() : reg_counter(0), if_counter(0), while_counter(0), now_while_count(0) {}
+  IRManager()
+      : reg_counter(0), if_counter(0), while_counter(0), now_while_count(0) {}
   int reg_counter;
   int if_counter;
   int while_counter;
@@ -61,27 +68,23 @@ private:
 class BaseAST {
 public:
   virtual ~BaseAST() = default;
-  virtual void print(std::ostream &os) {};
+  virtual void print(std::ostream &os){};
   friend std::ostream &operator<<(std::ostream &os, BaseAST &ast);
 };
 
 class CompUnitAST : public BaseAST {
 public:
   std::unique_ptr<BaseAST> func_def;
+  std::vector<std::unique_ptr<BaseAST>> *func_def_list;
   void print(std::ostream &os) override;
 };
 
 class FuncDefAST : public BaseAST {
 public:
-  std::unique_ptr<BaseAST> func_type;
+  std::string func_type;
   std::string ident;
   std::unique_ptr<BaseAST> block;
-  void print(std::ostream &os) override;
-};
-
-class FuncTypeAST : public BaseAST {
-public:
-  std::string func_type;
+  std::vector<FuncFParamAST> *func_fparam_list;
   void print(std::ostream &os) override;
 };
 
@@ -112,7 +115,14 @@ public:
   enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT };
   Kind kind;
   std::string ident;
-  void print(std::ostream &os) override {};
+  void print(std::ostream &os) override{};
+};
+
+class FuncFParamAST : public BaseAST {
+public:
+  std::string b_type;
+  std::string ident;
+  void print(std::ostream &os) override;
 };
 
 class VarDeclAST : public BaseAST {
@@ -192,7 +202,9 @@ public:
     L_OR_EXP,
     MUL_EXP,
     UNARY_EXP,
-    L_VAL
+    L_VAL,
+    FUNC_CALL_WITHOUT_PARAMS,
+    FUNC_CALL_WITH_PARAMS
   };
   Kind kind;
   int number;
@@ -220,6 +232,8 @@ class UnaryExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> primary_exp, unary_exp;
   UnaryOpKind unary_op;
+  std::string ident;
+  std::vector<std::unique_ptr<ExpAST>> *func_rparam_list;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
