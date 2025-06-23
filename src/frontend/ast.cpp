@@ -1,247 +1,5 @@
 #include "ast.h"
 
-void CompUnitAST::Dump() const {
-  std::cout << "CompUnitAST { ";
-  func_def->Dump();
-  std::cout << " }\n";
-}
-
-void FuncDefAST::Dump() const {
-  std::cout << "FuncDefAST { ";
-  func_type->Dump();
-  std::cout << ", " << ident << ", ";
-  block->Dump();
-  std::cout << " }";
-}
-
-void FuncTypeAST::Dump() const {
-  std::cout << "FuncTypeAst { " << func_type << " }";
-}
-
-void DeclAST::Dump() const {
-  std::cout << "DeclAST { ";
-  if (kind == DeclAST::Kind::CONST_DECL) {
-    const_decl->Dump();
-  } else if (kind == DeclAST::Kind::VAR_DECL) {
-    var_decl->Dump();
-  }
-  std::cout << " }";
-}
-
-void ConstDeclAST::Dump() const {
-  std::cout << "ConstDeclAST { ";
-  for (auto &item : *const_def_list) {
-    item->Dump();
-  }
-  std::cout << " }";
-}
-
-void BTypeAST::Dump() const { std::cout << "BTypeAST { " << b_type << " }"; }
-
-void VarDeclAST::Dump() const {
-  std::cout << "VarDeclAST { ";
-  for (auto &item : *var_def_list) {
-    item->Dump();
-  }
-  std::cout << " }";
-}
-
-void VarDefAST::Dump() const {
-  std::cout << "VarDefAST { " << ident;
-  if (kind == DefAST::Kind::VAR_DEF) {
-    std::cout << " = ";
-    init_val->Dump();
-  }
-  std::cout << " }";
-}
-
-void ConstDefAST::Dump() const {
-  std::cout << "ConstDefAST { " << ident << " = " << const_init_val << " }";
-}
-
-void BlockAST::Dump() const {
-  std::cout << "BlockAST { ";
-  if (block_item_list == nullptr) {
-    std::cout << "EMPTY_BLOCK";
-    return;
-  }
-  for (auto &item : *block_item_list) {
-    item->Dump();
-  }
-  std::cout << " }";
-}
-
-void BlockItemAST::Dump() const {
-  std::cout << "BlockItemAST { ";
-  if (kind == BlockItemAST::Kind::DECL) {
-    decl->Dump();
-  } else if (kind == BlockItemAST::Kind::STMT) {
-    stmt->Dump();
-  }
-  std::cout << " }";
-}
-
-void StmtAST::Dump() const {
-  std::cout << "StmtAST { ";
-  if (kind == StmtAST::Kind::RETURN_STMT) {
-    std::cout << "RETURN_STMT, ";
-    exp->Dump();
-  } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
-    r_exp->Dump();
-  } else if (kind == StmtAST::Kind::BLOCK_STMT) {
-    std::cout << "BLOCK_STMT, ";
-    block->Dump();
-  } else if (kind == StmtAST::Kind::EXP_STMT) {
-    std::cout << "EXP_STMT, ";
-    exp->Dump();
-  } else if (kind == StmtAST::Kind::EMPTY_STMT) {
-    std::cout << "EMPTY_STMT";
-  } else if (kind == StmtAST::Kind::IF_STMT) {
-    std::cout << "IF_STMT, ";
-    if_exp->Dump();
-    if_stmt->Dump();
-  } else if (kind == StmtAST::Kind::IF_ELSE_STMT) {
-    std::cout << "IF_ELSE_STMT, ";
-    if_exp->Dump();
-    if_stmt->Dump();
-    else_stmt->Dump();
-  } else if (kind == StmtAST::Kind::WHILE_STMT) {
-    std::cout << "WHILE_STMT, ";
-    while_exp->Dump();
-    while_stmt->Dump();
-  }
-  std::cout << " }";
-}
-
-void ExpAST::Dump() const {
-  std::cout << "ExpAST { ";
-  l_or_exp->Dump();
-  std::cout << " }";
-}
-
-void PrimaryExpAST::Dump() const {
-  std::cout << "PrimaryExpAST { ";
-  if (kind == ExpAST::Kind::EXP) {
-    std::cout << "EXP, ";
-    exp->Dump();
-  } else if (kind == ExpAST::Kind::NUMBER) {
-    std::cout << "NUMBER, " << number;
-  } else if (kind == ExpAST::Kind::L_VAL) {
-    std::cout << "L_VAL, " << l_val;
-  }
-  std::cout << " }";
-}
-void UnaryExpAST::Dump() const {
-  std::cout << "UnaryExpAST { ";
-  if (kind == UnaryExpAST::Kind::PRIMARY_EXP) {
-    primary_exp->Dump();
-  } else {
-    std::cout << "UNARY_OP_EXP, ";
-    if (unary_op == UnaryOpKind::Plus) {
-      std::cout << "+, ";
-    } else if (unary_op == UnaryOpKind::Minus) {
-      std::cout << "-, ";
-    } else if (unary_op == UnaryOpKind::Not) {
-      std::cout << "!, ";
-    }
-    unary_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void AddExpAST::Dump() const {
-  std::cout << "AddExpAST { ";
-  if (add_exp == nullptr) {
-    mul_exp->Dump();
-  } else {
-    add_exp->Dump();
-    if (add_op == AddOpKind::Plus) {
-      std::cout << "+, ";
-    } else if (add_op == AddOpKind::Minus) {
-      std::cout << "-, ";
-    }
-    mul_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void MulExpAST::Dump() const {
-  std::cout << "MulExpAST { ";
-  if (mul_exp == nullptr) {
-    unary_exp->Dump();
-  } else {
-    mul_exp->Dump();
-    if (mul_op == MulOpKind::Mul) {
-      std::cout << "*, ";
-    } else if (mul_op == MulOpKind::Div) {
-      std::cout << "/, ";
-    } else if (mul_op == MulOpKind::Mod) {
-      std::cout << "%, ";
-    }
-    unary_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void LOrExpAST::Dump() const {
-  std::cout << "LOrExpAST { ";
-  if (l_or_exp == nullptr) {
-    l_and_exp->Dump();
-  } else {
-    l_or_exp->Dump();
-    std::cout << "||, ";
-    l_and_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void LAndExpAST::Dump() const {
-  std::cout << "LAndExpAST { ";
-  if (l_and_exp == nullptr) {
-    eq_exp->Dump();
-  } else {
-    l_and_exp->Dump();
-    std::cout << "&&, ";
-    eq_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void EqExpAST::Dump() const {
-  std::cout << "EqExpAST { ";
-  if (eq_exp == nullptr) {
-    rel_exp->Dump();
-  } else {
-    eq_exp->Dump();
-    if (logical_op == LogicalOpKind::Equal) {
-      std::cout << "==, ";
-    } else if (logical_op == LogicalOpKind::NotEqual) {
-      std::cout << "!=, ";
-    }
-    rel_exp->Dump();
-  }
-  std::cout << " }";
-}
-
-void RelExpAST::Dump() const {
-  std::cout << "RelExpAST { ";
-  if (rel_exp == nullptr) {
-    add_exp->Dump();
-  } else {
-    rel_exp->Dump();
-    if (logical_op == LogicalOpKind::Greater) {
-      std::cout << ">, ";
-    } else if (logical_op == LogicalOpKind::Less) {
-      std::cout << "<, ";
-    } else if (logical_op == LogicalOpKind::GreaterEqual) {
-      std::cout << ">=, ";
-    } else if (logical_op == LogicalOpKind::LessEqual) {
-      std::cout << "<=, ";
-    }
-    add_exp->Dump();
-  }
-  std::cout << " }";
-}
 
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   ast.print(os);
@@ -484,14 +242,9 @@ void AddExpAST::print(std::ostream &os) {
     mul_exp->print(os);
     add_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
-
-    if (add_op == AddOpKind::Plus) {
-      os << "  %" << reg << " = add " << get_koopa_exp_reg(add_exp.get())
-         << ", " << get_koopa_exp_reg(mul_exp.get()) << "\n";
-    } else if (add_op == AddOpKind::Minus) {
-      os << "  %" << reg << " = sub " << get_koopa_exp_reg(add_exp.get())
-         << ", " << get_koopa_exp_reg(mul_exp.get()) << "\n";
-    }
+    const char *op = add_op == AddOpKind::Plus ? "add" : "sub";
+    os << "  %" << reg << " = " << op << " " << get_koopa_exp_reg(add_exp.get())
+       << ", " << get_koopa_exp_reg(mul_exp.get()) << "\n";
   }
 }
 
@@ -503,16 +256,20 @@ void MulExpAST::print(std::ostream &os) {
     mul_exp->print(os);
     unary_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
-    if (mul_op == MulOpKind::Mul) {
-      os << "  %" << reg << " = mul " << get_koopa_exp_reg(mul_exp.get())
-         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
-    } else if (mul_op == MulOpKind::Div) {
-      os << "  %" << reg << " = div " << get_koopa_exp_reg(mul_exp.get())
-         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
-    } else if (mul_op == MulOpKind::Mod) {
-      os << "  %" << reg << " = mod " << get_koopa_exp_reg(mul_exp.get())
-         << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
+    const char *op = "mul";
+    switch (mul_op) {
+    case MulOpKind::Mul:
+      op = "mul";
+      break;
+    case MulOpKind::Div:
+      op = "div";
+      break;
+    case MulOpKind::Mod:
+      op = "mod";
+      break;
     }
+    os << "  %" << reg << " = " << op << " " << get_koopa_exp_reg(mul_exp.get())
+       << ", " << get_koopa_exp_reg(unary_exp.get()) << "\n";
   }
 }
 
@@ -581,13 +338,9 @@ void EqExpAST::print(std::ostream &os) {
     eq_exp->print(os);
     rel_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
-    if (logical_op == LogicalOpKind::Equal) {
-      os << "  %" << reg << " = eq " << get_koopa_exp_reg(eq_exp.get()) << ", "
-         << get_koopa_exp_reg(rel_exp.get()) << "\n";
-    } else if (logical_op == LogicalOpKind::NotEqual) {
-      os << "  %" << reg << " = ne " << get_koopa_exp_reg(eq_exp.get()) << ", "
-         << get_koopa_exp_reg(rel_exp.get()) << "\n";
-    }
+    const char *op = logical_op == LogicalOpKind::Equal ? "eq" : "ne";
+    os << "  %" << reg << " = " << op << " " << get_koopa_exp_reg(eq_exp.get())
+       << ", " << get_koopa_exp_reg(rel_exp.get()) << "\n";
   }
 }
 
@@ -599,19 +352,26 @@ void RelExpAST::print(std::ostream &os) {
     rel_exp->print(os);
     add_exp->print(os);
     reg = IRManager::getInstance().getNextReg();
-    if (logical_op == LogicalOpKind::Greater) {
-      os << "  %" << reg << " = gt " << get_koopa_exp_reg(rel_exp.get()) << ", "
-         << get_koopa_exp_reg(add_exp.get()) << "\n";
-    } else if (logical_op == LogicalOpKind::Less) {
-      os << "  %" << reg << " = lt " << get_koopa_exp_reg(rel_exp.get()) << ", "
-         << get_koopa_exp_reg(add_exp.get()) << "\n";
-    } else if (logical_op == LogicalOpKind::GreaterEqual) {
-      os << "  %" << reg << " = ge " << get_koopa_exp_reg(rel_exp.get()) << ", "
-         << get_koopa_exp_reg(add_exp.get()) << "\n";
-    } else if (logical_op == LogicalOpKind::LessEqual) {
-      os << "  %" << reg << " = le " << get_koopa_exp_reg(rel_exp.get()) << ", "
-         << get_koopa_exp_reg(add_exp.get()) << "\n";
+    const char *op = nullptr;
+    switch (logical_op) {
+    case LogicalOpKind::Greater:
+      op = "gt";
+      break;
+    case LogicalOpKind::Less:
+      op = "lt";
+      break;
+    case LogicalOpKind::GreaterEqual:
+      op = "ge";
+      break;
+    case LogicalOpKind::LessEqual:
+      op = "le";
+      break;
+    default:
+      break;
     }
+    if (op)
+      os << "  %" << reg << " = " << op << " " << get_koopa_exp_reg(rel_exp.get())
+         << ", " << get_koopa_exp_reg(add_exp.get()) << "\n";
   }
 }
 
