@@ -41,7 +41,7 @@ private:
   std::unordered_map<std::string, int> addr_id_map;
 
   // 可用的寄存器集合
-  std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
+  std::set<std::string> regs = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
 
   // id计数器
   int id_counter = 0;
@@ -55,6 +55,9 @@ public:
   int getOffset(const std::string &alloc_name);
   void clear();
   int current_stack_offset = 0;
+  int r = 0;
+  int a = 0;
+  int final_stack_size = 0;
 
 private:
   int id_to_offset(int id);
@@ -78,7 +81,6 @@ private:
   std::stringstream oss;
   koopa_raw_program_builder_t builder;
   koopa_raw_program_t raw;
-  int total_stack_size = 0;
   void AllocateStack(const koopa_raw_function_t &func);
   void Visit(const koopa_raw_program_t &);
   void Visit(const koopa_raw_slice_t &);

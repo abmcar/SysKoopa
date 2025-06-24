@@ -62,9 +62,6 @@ std::string SymbolTableManger::get_lval_ident(const std::string &ident) {
 
 void SymbolTableManger::push_symbol_table() {
   symbol_table_stack.push_back(new SymbolTable());
-  std::cout << "push_symbol_table" << std::endl;
-  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
-            << std::endl;
 }
 
 void SymbolTableManger::alloc_stmt_table(BaseAST *stmt) {
@@ -73,16 +70,10 @@ void SymbolTableManger::alloc_stmt_table(BaseAST *stmt) {
 
 void SymbolTableManger::use_stmt_table(BaseAST *stmt) {
   symbol_table_stack.push_back(stmt_table_map[stmt]);
-  std::cout << "use_stmt_table" << std::endl;
-  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
-            << std::endl;
 }
 
 void SymbolTableManger::pop_symbol_table() {
   symbol_table_stack.pop_back();
-  std::cout << "pop_symbol_table" << std::endl;
-  std::cout << "symbol_table_stack.size() = " << symbol_table_stack.size()
-            << std::endl;
 }
 
 bool SymbolTableManger::is_var_defined(const std::string &ident) {

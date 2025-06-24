@@ -20,8 +20,8 @@ std::string AddrManager::getReg() {
 }
 
 template <typename T>
-std::string AddrManager::getAddrImpl(
-    const T &obj, std::unordered_map<const T *, int> &map) {
+std::string AddrManager::getAddrImpl(const T &obj,
+                                     std::unordered_map<const T *, int> &map) {
   int id;
   if (map.find(&obj) == map.end()) {
     id = getNextId();
@@ -212,8 +212,9 @@ void CodeGen::Visit(const koopa_raw_function_t &func) {
   oss << "  .globl " << func_name << "\n";
   oss << func_name << ":\n";
   AllocateStack(func);
-  modify_sp(-total_stack_size, oss);
+  modify_sp(-stack_offset_manager.final_stack_size, oss);
   // 访问所有基本块
+
   Visit(func->bbs);
 }
 
@@ -278,7 +279,7 @@ void CodeGen::Visit(const koopa_raw_return_t &ret) {
   } else {
     oss << "  mv a0, " << addr_manager.getAddr(ret.value) << "\n";
   }
-  modify_sp(total_stack_size, oss);
+  modify_sp(stack_offset_manager.final_stack_size, oss);
   oss << "  ret\n";
 }
 
@@ -343,7 +344,8 @@ void CodeGen::Visit(const koopa_raw_binary_t &binary) {
     std::cerr << "Unknown binary operation: " << binary.op << std::endl;
     assert(false);
   }
-  oss << "  sw " << res_addr << ", " << stack_offset_manager.getOffset(binary) << "(sp)\n";
+  oss << "  sw " << res_addr << ", " << stack_offset_manager.getOffset(binary)
+      << "(sp)\n";
   // addr_manager.freeReg(res_addr);
   addr_manager.freeReg(lhs_addr);
   addr_manager.freeReg(rhs_addr);
@@ -370,6 +372,9 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
     cmd_li(store.value, val_addr);
   } else if (store.value->kind.tag == KOOPA_RVT_INTEGER) {
     cmd_li(store.value, val_addr);
+  } else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
+    // TODO))
+    assert(false);
   } else {
     assert(false);
   }
@@ -381,7 +386,8 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
 void CodeGen::Visit(const koopa_raw_branch_t &branch) {
   std::string cond_addr = addr_manager.getAddr(branch.cond);
   cmd_li(branch.cond, cond_addr);
-  oss << "  bnez " << cond_addr << ", " << get_label(branch.true_bb->name) << "\n";
+  oss << "  bnez " << cond_addr << ", " << get_label(branch.true_bb->name)
+      << "\n";
   oss << "  j " << get_label(branch.false_bb->name) << "\n";
   addr_manager.freeReg(cond_addr);
 }
@@ -399,10 +405,12 @@ void CodeGen::cmd_li(const koopa_raw_value_t &value,
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     oss << "  li " << res_addr << ", " << get_value(value) << "\n";
   } else if (value->kind.tag == KOOPA_RVT_BINARY) {
-    oss << "  lw " << res_addr << ", " << stack_offset_manager.getOffset(value->kind.data.binary)  << "(sp)\n";
+    oss << "  lw " << res_addr << ", "
+        << stack_offset_manager.getOffset(value->kind.data.binary) << "(sp)\n";
   } else if (value->kind.tag == KOOPA_RVT_LOAD) {
-    oss << "  lw " << res_addr << ", " << stack_offset_manager.getOffset(value->kind.data.load)  << "(sp)\n";
-  } else {  
+    oss << "  lw " << res_addr << ", "
+        << stack_offset_manager.getOffset(value->kind.data.load) << "(sp)\n";
+  } else {
     assert(false);
   }
 }
@@ -410,6 +418,9 @@ void CodeGen::cmd_li(const koopa_raw_value_t &value,
 // 分配栈空间：为 alloc 和有返回值的指令分配 4 字节，并记录偏移
 void CodeGen::AllocateStack(const koopa_raw_function_t &func) {
   stack_offset_manager.clear();
+  int call_num = 0;
+  int max_param_num = 0;
+  int total_stack_size = 0;
   // 遍历所有基本块
   for (size_t i = 0; i < func->bbs.len; ++i) {
     auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
@@ -420,10 +431,18 @@ void CodeGen::AllocateStack(const koopa_raw_function_t &func) {
       if (inst->kind.tag == KOOPA_RVT_ALLOC ||
           (inst->ty->tag != KOOPA_RTT_UNIT)) {
         stack_offset_manager.setOffset(inst);
+      } else if (inst->kind.tag == KOOPA_RVT_CALL) {
+        call_num++;
+        max_param_num =
+            std::max(max_param_num, (int)inst->kind.data.call.args.len);
       }
     }
   }
   // 计算总栈空间并 16 字节对齐
-  total_stack_size =
-      ((stack_offset_manager.current_stack_offset + 15) / 16) * 16;
+  stack_offset_manager.r = std::max(call_num, 0) * 4;
+  stack_offset_manager.a = std::max(max_param_num - 8, 0) * 4;
+
+  total_stack_size = stack_offset_manager.current_stack_offset +
+                     stack_offset_manager.r + stack_offset_manager.a;
+  stack_offset_manager.final_stack_size = ((total_stack_size + 15) / 16) * 16;
 }
