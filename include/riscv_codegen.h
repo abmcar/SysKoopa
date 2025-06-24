@@ -2,10 +2,11 @@
 #pragma once
 
 #include <cassert>
-#include <iostream>
 #include <set>
 #include <sstream>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 
 #include "koopa.h"
@@ -50,9 +51,13 @@ private:
 class StackOffsetManager {
 public:
   void setOffset(const koopa_raw_value_t &value);
+  void setOffset(int idx, int offset);
+  int getOffset(const koopa_raw_value_t &value);
   int getOffset(const koopa_raw_load_t &load);
   int getOffset(const koopa_raw_binary_t &binary);
   int getOffset(const std::string &alloc_name);
+  int getOffset(const koopa_raw_func_arg_ref_t &func_arg_ref);
+  int getOffset(const koopa_raw_call_t &call);
   void clear();
   int current_stack_offset = 0;
   int r = 0;
@@ -65,6 +70,8 @@ private:
   std::unordered_map<const koopa_raw_load_t *, int> load_id_map;
   std::unordered_map<const koopa_raw_binary_t *, int> binary_id_map;
   std::unordered_map<std::string, int> alloc_name_id_map;
+  std::unordered_map<int, int> func_arg_idx_id_map;
+  std::unordered_map<const koopa_raw_call_t *, int> call_id_map;
   std::unordered_map<int, int> id_to_offset_map;
 
   
@@ -94,9 +101,19 @@ private:
   void Visit(const koopa_raw_store_t &);
   void Visit(const koopa_raw_branch_t &);
   void Visit(const koopa_raw_jump_t &);
-  void cmd_li(const koopa_raw_value_t &value, const std::string &res_addr);
+  void Visit(const koopa_raw_call_t &);
+  void cmd_li(const koopa_raw_value_t &value, std::string &res_addr);
   int32_t get_value(const koopa_raw_value_t);
   void print_num(int num);
-  AddrManager addr_manager;
-  StackOffsetManager stack_offset_manager = StackOffsetManager();
+  std::vector<AddrManager> addr_managers;
+  std::vector<StackOffsetManager> stack_offset_managers;
+  void push_addr_manager();
+  void push_stack_offset_manager();
+  void pop_addr_manager();
+  void pop_stack_offset_manager();
+  AddrManager &get_addr_manager();
+  StackOffsetManager &get_stack_offset_manager();
+
+  // AddrManager addr_manager;
+  // StackOffsetManager stack_offset_manager = StackOffsetManager();
 };
