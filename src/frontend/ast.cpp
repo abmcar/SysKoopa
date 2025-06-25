@@ -1,4 +1,5 @@
 #include "ast.h"
+#include "symbol_table.h"
 #include "util.h"
 
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
@@ -6,7 +7,62 @@ std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   return os;
 };
 
+void decl_lib_symbols() {
+  SymbolTableManger::getInstance().alloc_ident("getint");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("getint", false);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getint"] = SymbolTable::DefType::FUNC_INT;
+
+  SymbolTableManger::getInstance().alloc_ident("getch");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("getch", false);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getch"] = SymbolTable::DefType::FUNC_INT;
+
+  SymbolTableManger::getInstance().alloc_ident("getarray");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("getarray", true);
+  std::vector<FuncFParamAST> func_fparams = {FuncFParamAST("*i32", "n")};
+  SymbolTableManger::getInstance().alloc_func_fparams("getarray", func_fparams);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getarray"] = SymbolTable::DefType::FUNC_INT;
+
+  SymbolTableManger::getInstance().alloc_ident("putint");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("putint", true);
+  func_fparams = {FuncFParamAST("i32", "i")};
+  SymbolTableManger::getInstance().alloc_func_fparams("putint", func_fparams);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putint"] = SymbolTable::DefType::FUNC_VOID;
+
+  SymbolTableManger::getInstance().alloc_ident("putch");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("putch", true);
+  func_fparams = {FuncFParamAST("i32", "i")};
+  SymbolTableManger::getInstance().alloc_func_fparams("putch", func_fparams);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putch"] = SymbolTable::DefType::FUNC_VOID;
+
+  SymbolTableManger::getInstance().alloc_ident("putarray");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("putarray", true);
+  func_fparams = {FuncFParamAST("i32", "i"), FuncFParamAST("*i32", "a")};
+  SymbolTableManger::getInstance().alloc_func_fparams("putarray", func_fparams);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putarray"] = SymbolTable::DefType::FUNC_VOID;
+  
+  SymbolTableManger::getInstance().alloc_ident("starttime");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("starttime", false);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["starttime"] = SymbolTable::DefType::FUNC_VOID;
+  
+  SymbolTableManger::getInstance().alloc_ident("stoptime");
+  SymbolTableManger::getInstance().alloc_func_has_fparams("stoptime", false);
+  SymbolTableManger::getInstance().get_back_table().def_type_map["stoptime"] = SymbolTable::DefType::FUNC_VOID;
+}
+
+void decl_lib_functions(std::ostream &os) {
+  os << "decl @getint(): i32\n";
+  os << "decl @getch(): i32\n";
+  os << "decl @getarray(*i32): i32\n";
+  os << "decl @putint(i32)\n";
+  os << "decl @putch(i32)\n";
+  os << "decl @putarray(i32, *i32)\n";
+  os << "decl @starttime()\n";
+  os << "decl @stoptime()\n";
+  os << "\n\n";
+}
+
 void CompUnitAST::print(std::ostream &os) {
+  decl_lib_functions(os);
   for (auto &item : *func_def_list) {
     item->print(os);
     os << "\n";
@@ -288,8 +344,13 @@ void UnaryExpAST::print(std::ostream &os) {
       item->print(os);
       reg_list.push_back(get_koopa_exp_reg(item.get()));
     }
-    reg = IRManager::getInstance().getNextReg();
-    os << "  %" << reg << " = call @" << ident << "(";
+    auto DType = SymbolTableManger::getInstance().get_def_type(ident);
+    if (DType == SymbolTable::DefType::FUNC_VOID) {
+      os << "  call @" << ident << "(";
+    } else if (DType == SymbolTable::DefType::FUNC_INT) {
+      reg = IRManager::getInstance().getNextReg();
+      os << "  %" << reg << " = call @" << ident << "(";
+    }
     for (int i = 0; i < reg_list.size(); i++) {
       os << reg_list[i];
       if (i != reg_list.size() - 1) {

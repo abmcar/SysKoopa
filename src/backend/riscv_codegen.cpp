@@ -271,11 +271,12 @@ void CodeGen::Visit(const koopa_raw_slice_t &slice) {
 // 访问函数
 void CodeGen::Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
-  std::string func_name = func->name;
-  func_name.erase(0, 1);
+  if (func->bbs.len ==0) {
+    return;
+  }
   oss << "  .text\n";
-  oss << "  .globl " << func_name << "\n";
-  oss << func_name << ":\n";
+  oss << "  .globl " << get_label(func->name) << "\n";
+  oss << get_label(func->name) << ":\n";
   push_stack_offset_manager();
   push_addr_manager();
   AllocateStack(func);

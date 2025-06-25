@@ -75,6 +75,7 @@ using namespace std;
 CompUnit
   : {
     SymbolTableManger::getInstance().push_symbol_table();
+    decl_lib_symbols();
   }
   FuncDefList {
     auto comp_unit = make_unique<CompUnitAST>();

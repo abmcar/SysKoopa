@@ -30,6 +30,8 @@ class DefAST;
 
 #include "symbol_table.h"
 
+void decl_lib_symbols();
+
 class IRManager {
 public:
   static IRManager &getInstance() {
@@ -120,6 +122,8 @@ public:
 
 class FuncFParamAST : public BaseAST {
 public:
+  FuncFParamAST() : b_type(""), ident("") {}
+  FuncFParamAST(std::string b_type, std::string ident) : b_type(b_type), ident(ident) {}
   std::string b_type;
   std::string ident;
   void print(std::ostream &os) override;
