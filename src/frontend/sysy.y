@@ -61,37 +61,47 @@ using namespace std;
 // 非终结符的类型定义
 %type <ast_val> FuncDef Block BlockItem Stmt Decl ConstDecl VarDecl FuncFParam
 %type <int_val> Number ConstInitVal
-%type <str_val> BType LVal FuncType
+%type <str_val> Type LVal
 %type <unary_op_kind> UnaryOp
 %type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp InitVal
-%type <ast_vec_val> BlockItemList FuncDefList
+%type <ast_vec_val> BlockItemList CompUnitList
 %type <def_ast_val> ConstDef VarDef 
 %type <def_ast_vec_val> ConstDefList VarDefList 
 %type <exp_ast_vec_val> FuncRParamList
 %type <func_fparam_ast_vec_val> FuncFParamList
 %%
 
-// CompUnit ::= [CompUnit] FuncDef
+// CompUnit ::= [CompUnit] (FuncDef | Decl) ;
 CompUnit
   : {
     SymbolTableManger::getInstance().push_symbol_table();
     decl_lib_symbols();
   }
-  FuncDefList {
+  CompUnitList {
     auto comp_unit = make_unique<CompUnitAST>();
     comp_unit->func_def_list = $2;
     ast = std::move(comp_unit);
   }
   ;
 
-// FuncDefList ::= FuncDef | FuncDefList FuncDef;
-FuncDefList
+// CompUnitList ::= CompUnitList (FuncDef | Decl);
+CompUnitList
   : FuncDef {
     auto vec = new vector<unique_ptr<BaseAST>>();
     vec->push_back(unique_ptr<BaseAST>($1));
     $$ = vec;
   }
-  | FuncDefList FuncDef {
+  | Decl {
+    auto vec = new vector<unique_ptr<BaseAST>>();
+    vec->push_back(unique_ptr<BaseAST>($1));
+    $$ = vec;
+  }
+  | CompUnitList FuncDef {
+    auto vec = $1;
+    vec->push_back(unique_ptr<BaseAST>($2));
+    $$ = vec;
+  }
+  | CompUnitList Decl {
     auto vec = $1;
     vec->push_back(unique_ptr<BaseAST>($2));
     $$ = vec;
@@ -114,7 +124,7 @@ FuncFParamList
 
 // FuncFParam ::= BType IDENT;
 FuncFParam
-  : BType IDENT {
+  : Type IDENT {
     auto ast = new FuncFParamAST();
     ast->b_type = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
@@ -124,7 +134,7 @@ FuncFParam
 
 // FuncDef ::= FuncType IDENT '(' [FuncFParamList] ')' Block;
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : Type IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
     ast->func_type = *unique_ptr<string>($1);
     ast->ident= *unique_ptr<string>($2);
@@ -139,7 +149,7 @@ FuncDef
       SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
     }
   }
-  | FuncType IDENT '(' FuncFParamList ')' Block {
+  | Type IDENT '(' FuncFParamList ')' Block {
     auto ast = new FuncDefAST();
     ast->func_type = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
@@ -158,7 +168,7 @@ FuncDef
   ;
 
 // FuncType ::= "void" | "int";
-FuncType
+Type
   : INT {
     $$ = new std::string("int");
   }
@@ -183,10 +193,10 @@ Decl
   }
   ;
 
-// ConstDecl ::= "const" Btype ConstDef {"," ConstDef} ";";
-// ConstDecl ::= "const" Btype ConstDefList ";";
+// ConstDecl ::= "const" Type ConstDef {"," ConstDef} ";";
+// ConstDecl ::= "const" Type ConstDefList ";";
 ConstDecl
-  : CONST BType ConstDefList ';' {
+  : CONST Type ConstDefList ';' {
     auto ast = new ConstDeclAST();
     ast->b_type = *unique_ptr<string>($2);
     ast->const_def_list = $3;
@@ -197,10 +207,10 @@ ConstDecl
   }
   ;
 
-// VarDecl ::= Btype VarDef {"," VarDef} ";";
-// VarDecl ::= Btype VarDefList ";";
+// VarDecl ::= Type VarDef {"," VarDef} ";";
+// VarDecl ::= Type VarDefList ";";
 VarDecl
-  : BType VarDefList ';' {
+  : Type VarDefList ';' {
     auto ast = new VarDeclAST();
     ast->b_type = *unique_ptr<string>($1);
     ast->var_def_list = $2;
@@ -254,13 +264,6 @@ VarDef
 InitVal
   : Exp {
     $$ = $1;
-  }
-  ;
-
-// BType ::= "int";
-BType
-  : INT {
-    $$ = new std::string("int");
   }
   ;
 

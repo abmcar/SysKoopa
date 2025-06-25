@@ -136,7 +136,7 @@ void StackOffsetManager::setOffset(int idx, int offset) {
 }
 
 int StackOffsetManager::getOffset(const koopa_raw_load_t &load) {
-  int id;
+  int id = 0;
   if (load_id_map.find(&load) == load_id_map.end()) {
     assert(false);
   } else {
@@ -146,7 +146,7 @@ int StackOffsetManager::getOffset(const koopa_raw_load_t &load) {
 }
 
 int StackOffsetManager::getOffset(const koopa_raw_binary_t &binary) {
-  int id;
+  int id = 0;
   if (binary_id_map.find(&binary) == binary_id_map.end()) {
     assert(false);
   } else {
@@ -156,7 +156,7 @@ int StackOffsetManager::getOffset(const koopa_raw_binary_t &binary) {
 }
 
 int StackOffsetManager::getOffset(const std::string &alloc_name) {
-  int id;
+  int id = 0;
   if (alloc_name_id_map.find(alloc_name) == alloc_name_id_map.end()) {
     assert(false);
   } else {
@@ -167,7 +167,7 @@ int StackOffsetManager::getOffset(const std::string &alloc_name) {
 
 int StackOffsetManager::getOffset(
     const koopa_raw_func_arg_ref_t &func_arg_ref) {
-  int id;
+  int id = 0;
   if (func_arg_idx_id_map.find(func_arg_ref.index) ==
       func_arg_idx_id_map.end()) {
     assert(false);
@@ -178,7 +178,7 @@ int StackOffsetManager::getOffset(
 }
 
 int StackOffsetManager::getOffset(const koopa_raw_call_t &call) {
-  int id;
+  int id = 0;
   if (call_id_map.find(&call) == call_id_map.end()) {
     assert(false);
   } else {
@@ -204,6 +204,8 @@ int StackOffsetManager::getOffset(const koopa_raw_value_t &value) {
   default:
     assert(false);
   }
+  assert(false);
+  return 0;
 }
 
 void StackOffsetManager::clear() {
@@ -218,9 +220,8 @@ void StackOffsetManager::clear() {
 CodeGen::CodeGen(const std::string &koopa_ir) {
   push_addr_manager();
   push_stack_offset_manager();
-  const char *str = koopa_ir.c_str();
   koopa_program_t program;
-  assert(koopa_parse_from_string(str, &program) == KOOPA_EC_SUCCESS);
+  assert(koopa_parse_from_string(koopa_ir.c_str(), &program) == KOOPA_EC_SUCCESS);
   builder = koopa_new_raw_program_builder();
   raw = koopa_build_raw_program(builder, program);
   koopa_delete_program(program);

@@ -29,8 +29,7 @@ int main(int argc, const char *argv[]) {
   assert(yyin);
 
   unique_ptr<BaseAST> ast;
-  auto ret = yyparse(ast);
-  assert(!ret);
+  assert(!yyparse(ast));
 
 
   stringstream oss;
