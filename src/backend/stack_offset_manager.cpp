@@ -38,6 +38,11 @@ void StackOffsetManager::setOffset(const koopa_raw_value_t &value) {
     id_to_offset_map[call_id_map[&value->kind.data.call]] = current_stack_offset;
     current_stack_offset += 4;
     break;
+  case KOOPA_RVT_GLOBAL_ALLOC:
+    alloc_name_id_map[value->name] = getNextId();
+    id_to_offset_map[alloc_name_id_map[value->name]] = current_stack_offset;
+    current_stack_offset += 4;
+    break;
   default:
     assert(false);
   }

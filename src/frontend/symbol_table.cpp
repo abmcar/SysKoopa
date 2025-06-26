@@ -57,7 +57,7 @@ void SymbolTableManger::alloc_ident(const std::string &ident) {
 }
 
 std::string SymbolTableManger::get_lval_ident(const std::string &ident) {
-  return ident + std::to_string(ident_count_map[ident]++);
+  return ident + "_" + std::to_string(ident_count_map[ident]++);
 }
 
 void SymbolTableManger::push_symbol_table() {

@@ -1,6 +1,7 @@
 // riscv_codegen.cpp
 #include <cstddef>
 #include <iostream>
+#include <string>
 
 #include "riscv_codegen.h"
 #include "util.h"
@@ -9,7 +10,8 @@ CodeGen::CodeGen(const std::string &koopa_ir) {
   push_addr_manager();
   push_stack_offset_manager();
   koopa_program_t program;
-  assert(koopa_parse_from_string(koopa_ir.c_str(), &program) == KOOPA_EC_SUCCESS);
+  assert(koopa_parse_from_string(koopa_ir.c_str(), &program) ==
+         KOOPA_EC_SUCCESS);
   builder = koopa_new_raw_program_builder();
   raw = koopa_build_raw_program(builder, program);
   koopa_delete_program(program);
@@ -25,9 +27,10 @@ std::string CodeGen::gererate() {
 // 访问 raw program
 void CodeGen::Visit(const koopa_raw_program_t &program) {
   // 执行一些其他的必要操作
-
+  oss << "  .data\n";
   // 访问所有全局变量
   Visit(program.values);
+  oss << "\n\n";
   // 访问所有函数
   Visit(program.funcs);
 }
@@ -60,7 +63,7 @@ void CodeGen::Visit(const koopa_raw_slice_t &slice) {
 // 访问函数
 void CodeGen::Visit(const koopa_raw_function_t &func) {
   // 执行一些其他的必要操作
-  if (func->bbs.len ==0) {
+  if (func->bbs.len == 0) {
     return;
   }
   oss << "  .text\n";
@@ -132,6 +135,10 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     // 访问 call 指令
     Visit(kind.data.call);
     break;
+  case KOOPA_RVT_GLOBAL_ALLOC:
+    // 访问 global_alloc 指令
+    Visit(kind.data.global_alloc, value->name);
+    break;
   default:
     // 其他类型暂时遇不到
     std::cerr << "Unknown instruction: " << kind.tag << std::endl;
@@ -141,11 +148,19 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
 
 void CodeGen::Visit(const koopa_raw_return_t &ret) {
   if (ret.value == nullptr) {
+    if (get_stack_offset_manager().r != 0) {
+      oss << "  lw ra, " << get_stack_offset_manager().final_stack_size - 4
+          << "(sp)\n";
+    }
+    modify_sp(get_stack_offset_manager().final_stack_size, oss);
     oss << "  ret\n";
     return;
   }
   if (ret.value->kind.tag == KOOPA_RVT_INTEGER) {
     oss << "  li a0, " << get_value(ret.value) << "\n";
+  } else if (ret.value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    oss << "  la a0, " << get_label(ret.value->name) << "\n";
+    oss << "  lw a0, 0(a0)\n";
   } else {
     int offset = get_stack_offset_manager().getOffset(ret.value);
     oss << "  lw a0, " << offset << "(sp)\n";
@@ -158,6 +173,7 @@ void CodeGen::Visit(const koopa_raw_return_t &ret) {
   oss << "  ret\n";
 }
 
+// return int32_t value of koopa_raw_value_t
 int32_t CodeGen::get_value(const koopa_raw_value_t val) {
   return val->kind.data.integer.value;
 }
@@ -234,8 +250,12 @@ void CodeGen::Visit(const koopa_raw_load_t &load) {
   auto &stack_offset_manager = get_stack_offset_manager();
   auto &addr_manager = get_addr_manager();
   std::string res_addr = addr_manager.getAddr(load);
-  int src_offset = stack_offset_manager.getOffset(load.src->name);
-  oss << "  lw " << res_addr << ", " << src_offset << "(sp)\n";
+  if (load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    oss << "  lw " << res_addr << ", " << get_label(load.src->name) << "\n";
+  } else {
+    int src_offset = stack_offset_manager.getOffset(load.src->name);
+    oss << "  lw " << res_addr << ", " << src_offset << "(sp)\n";
+  }
   int offset = stack_offset_manager.getOffset(load);
   oss << "  sw " << res_addr << ", " << offset << "(sp)\n";
   addr_manager.freeReg(res_addr);
@@ -243,8 +263,6 @@ void CodeGen::Visit(const koopa_raw_load_t &load) {
 }
 
 void CodeGen::Visit(const koopa_raw_store_t &store) {
-  std::string dest_name = store.dest->name;
-  int dest_offset = get_stack_offset_manager().getOffset(dest_name);
   std::string val_addr = get_addr_manager().getAddr(store.value);
   if (store.value->kind.tag == KOOPA_RVT_BINARY) {
     cmd_li(store.value, val_addr);
@@ -254,10 +272,27 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
     cmd_li(store.value, val_addr);
   } else if (store.value->kind.tag == KOOPA_RVT_CALL) {
     cmd_li(store.value, val_addr);
+  } else if (store.value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    cmd_li(store.value, val_addr);
   } else {
     assert(false);
   }
-  oss << "  sw " << val_addr << ", " << dest_offset << "(sp)\n";
+
+  std::string dest_name = store.dest->name;
+  std::string dest_str = "";
+  if (store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    std::string tmp_reg = get_addr_manager().getAddr(store);
+    oss << "  la " << tmp_reg << ", " << get_label(store.dest->name) << "\n";
+    dest_str = "0(" + tmp_reg + ")";
+    get_addr_manager().freeReg(tmp_reg);
+    get_addr_manager().freeId(store.dest);
+  } else {
+    int dest_offset = get_stack_offset_manager().getOffset(dest_name);
+    dest_str = std::to_string(dest_offset) + "(sp)";
+  }
+
+  oss << "  sw " << val_addr << ", " << dest_str << "\n";
+
   get_addr_manager().freeReg(val_addr);
   get_addr_manager().freeId(store.value);
 }
@@ -275,7 +310,6 @@ void CodeGen::Visit(const koopa_raw_branch_t &branch) {
 
 void CodeGen::Visit(const koopa_raw_jump_t &jump) {
   oss << "  j " << get_label(jump.target->name) << "\n";
-  // oss << "jumpTest\n";
 }
 
 void CodeGen::Visit(const koopa_raw_call_t &call) {
@@ -310,6 +344,18 @@ void CodeGen::Visit(const koopa_raw_call_t &call) {
   }
 }
 
+void CodeGen::Visit(const koopa_raw_global_alloc_t &global_alloc,
+                    std::string var_name) {
+  oss << "  .global " << get_label(var_name) << "\n";
+  oss << get_label(var_name) << ":\n";
+  std::string stmt = "";
+  if (global_alloc.init->kind.tag == KOOPA_RVT_INTEGER) {
+    oss << "  .word " << get_value(global_alloc.init) << "\n";
+  } else {
+    oss << "  .zero 4\n";
+  }
+}
+
 void CodeGen::cmd_li(const koopa_raw_value_t &value, std::string &res_addr) {
   auto &stack_offset_manager = get_stack_offset_manager();
   if (res_addr == "x0") {
@@ -336,6 +382,9 @@ void CodeGen::cmd_li(const koopa_raw_value_t &value, std::string &res_addr) {
   } else if (value->kind.tag == KOOPA_RVT_CALL) {
     oss << "  lw " << res_addr << ", "
         << stack_offset_manager.getOffset(value->kind.data.call) << "(sp)\n";
+  } else if (value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    oss << "  la " << res_addr << ", " << get_label(value->name) << "\n";
+    oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
   } else {
     assert(false);
   }
