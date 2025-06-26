@@ -264,19 +264,7 @@ void CodeGen::Visit(const koopa_raw_load_t &load) {
 
 void CodeGen::Visit(const koopa_raw_store_t &store) {
   std::string val_addr = get_addr_manager().getAddr(store.value);
-  if (store.value->kind.tag == KOOPA_RVT_BINARY) {
-    cmd_li(store.value, val_addr);
-  } else if (store.value->kind.tag == KOOPA_RVT_INTEGER) {
-    cmd_li(store.value, val_addr);
-  } else if (store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
-    cmd_li(store.value, val_addr);
-  } else if (store.value->kind.tag == KOOPA_RVT_CALL) {
-    cmd_li(store.value, val_addr);
-  } else if (store.value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
-    cmd_li(store.value, val_addr);
-  } else {
-    assert(false);
-  }
+  cmd_li(store.value, val_addr);
 
   std::string dest_name = store.dest->name;
   std::string dest_str = "";
