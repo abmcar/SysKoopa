@@ -1,6 +1,7 @@
 #include "ast.h"
 #include "symbol_table.h"
 #include "util.h"
+#include <string>
 
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   ast.print(os);
@@ -10,43 +11,51 @@ std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
 void decl_lib_symbols() {
   SymbolTableManger::getInstance().alloc_ident("getint");
   SymbolTableManger::getInstance().alloc_func_has_fparams("getint", false);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["getint"] = SymbolTable::DefType::FUNC_INT;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getint"] =
+      SymbolTable::DefType::FUNC_INT;
 
   SymbolTableManger::getInstance().alloc_ident("getch");
   SymbolTableManger::getInstance().alloc_func_has_fparams("getch", false);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["getch"] = SymbolTable::DefType::FUNC_INT;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getch"] =
+      SymbolTable::DefType::FUNC_INT;
 
   SymbolTableManger::getInstance().alloc_ident("getarray");
   SymbolTableManger::getInstance().alloc_func_has_fparams("getarray", true);
   std::vector<FuncFParamAST> func_fparams = {FuncFParamAST("*i32", "n")};
   SymbolTableManger::getInstance().alloc_func_fparams("getarray", func_fparams);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["getarray"] = SymbolTable::DefType::FUNC_INT;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["getarray"] =
+      SymbolTable::DefType::FUNC_INT;
 
   SymbolTableManger::getInstance().alloc_ident("putint");
   SymbolTableManger::getInstance().alloc_func_has_fparams("putint", true);
   func_fparams = {FuncFParamAST("i32", "i")};
   SymbolTableManger::getInstance().alloc_func_fparams("putint", func_fparams);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["putint"] = SymbolTable::DefType::FUNC_VOID;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putint"] =
+      SymbolTable::DefType::FUNC_VOID;
 
   SymbolTableManger::getInstance().alloc_ident("putch");
   SymbolTableManger::getInstance().alloc_func_has_fparams("putch", true);
   func_fparams = {FuncFParamAST("i32", "i")};
   SymbolTableManger::getInstance().alloc_func_fparams("putch", func_fparams);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["putch"] = SymbolTable::DefType::FUNC_VOID;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putch"] =
+      SymbolTable::DefType::FUNC_VOID;
 
   SymbolTableManger::getInstance().alloc_ident("putarray");
   SymbolTableManger::getInstance().alloc_func_has_fparams("putarray", true);
   func_fparams = {FuncFParamAST("i32", "i"), FuncFParamAST("*i32", "a")};
   SymbolTableManger::getInstance().alloc_func_fparams("putarray", func_fparams);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["putarray"] = SymbolTable::DefType::FUNC_VOID;
-  
+  SymbolTableManger::getInstance().get_back_table().def_type_map["putarray"] =
+      SymbolTable::DefType::FUNC_VOID;
+
   SymbolTableManger::getInstance().alloc_ident("starttime");
   SymbolTableManger::getInstance().alloc_func_has_fparams("starttime", false);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["starttime"] = SymbolTable::DefType::FUNC_VOID;
-  
+  SymbolTableManger::getInstance().get_back_table().def_type_map["starttime"] =
+      SymbolTable::DefType::FUNC_VOID;
+
   SymbolTableManger::getInstance().alloc_ident("stoptime");
   SymbolTableManger::getInstance().alloc_func_has_fparams("stoptime", false);
-  SymbolTableManger::getInstance().get_back_table().def_type_map["stoptime"] = SymbolTable::DefType::FUNC_VOID;
+  SymbolTableManger::getInstance().get_back_table().def_type_map["stoptime"] =
+      SymbolTable::DefType::FUNC_VOID;
 }
 
 void decl_lib_functions(std::ostream &os) {
@@ -102,10 +111,18 @@ void FuncDefAST::print(std::ostream &os) {
     int n = func_fparams.size();
     for (int i = 0; i < n; i++) {
       SymbolTableManger::getInstance().alloc_ident(func_fparams[i].ident);
-      SymbolTableManger::getInstance().get_back_table().def_type_map[func_fparams[i].ident] = SymbolTable::DefType::VAR_IDENT;
-      SymbolTableManger::getInstance().get_back_table().lval_ident_map[func_fparams[i].ident] = this->ident + "_" + func_fparams[i].ident;
-      os << "  @" << this->ident << "_" << func_fparams[i].ident << " = alloc i32\n";
-      os << "  store @" << func_fparams[i].ident << ", @" << this->ident << "_" << func_fparams[i].ident << "\n";
+      SymbolTableManger::getInstance()
+          .get_back_table()
+          .def_type_map[func_fparams[i].ident] =
+          SymbolTable::DefType::VAR_IDENT;
+      SymbolTableManger::getInstance()
+          .get_back_table()
+          .lval_ident_map[func_fparams[i].ident] =
+          this->ident + "_" + func_fparams[i].ident;
+      os << "  @" << this->ident << "_" << func_fparams[i].ident
+         << " = alloc i32\n";
+      os << "  store @" << func_fparams[i].ident << ", @" << this->ident << "_"
+         << func_fparams[i].ident << "\n";
     }
   }
   block->print(os);
@@ -144,7 +161,20 @@ void VarDefAST::print(std::ostream &os) {
   std::string ident = SymbolTableManger::getInstance()
                           .get_back_table()
                           .lval_ident_map[this->ident];
-  os << "  @" + ident << " = alloc i32\n";
+  bool is_global = SymbolTableManger::getInstance().is_global_table();
+  if (is_global) {
+    if (kind == DefAST::Kind::VAR_IDENT) {
+      os << "global @" + ident << " = alloc i32, zeroinit\n";
+    } else {
+      init_val->print(os);
+      os << "global @" + ident << " = alloc i32, "
+         << get_koopa_exp_reg(init_val.get()) << "\n";
+    }
+    SymbolTableManger::getInstance().alloc_ident(this->ident);
+    return;
+  } else {
+    os << "  @" + ident << " = alloc i32\n";
+  }
   if (kind == DefAST::Kind::VAR_DEF) {
     init_val->print(os);
     os << "  store " << get_koopa_exp_reg(init_val.get()) << ", @" + ident
@@ -406,24 +436,30 @@ void LOrExpAST::print(std::ostream &os) {
     pushup_exp_reg(l_and_exp.get(), this);
   } else {
     l_or_exp->print(os);
-    if (IRManager::getInstance().is_in_if) {
-      int tmp_reg = IRManager::getInstance().getNextReg();
-      std::string next_pos =
-          "%end_" + std::to_string(IRManager::getInstance().getNowIfCount());
-      if (IRManager::getInstance().is_in_if_else) {
-        next_pos =
-            "%else_" + std::to_string(IRManager::getInstance().getNowIfCount());
-      }
-      os << "  br " << get_koopa_exp_reg(l_or_exp.get()) << ", %continue_"
-         << tmp_reg << ", " << next_pos << "\n";
-      os << "%continue_" << tmp_reg << ":\n";
-    }
+
+    reg = IRManager::getInstance().getNextReg();
+
+    std::string tmp_var_name = "Or" + std::to_string(reg) + "_tmp_var";
+    std::string lhs_false = "%lhs_false" + std::to_string(reg);
+    std::string rhs_false = "%rhs_false" + std::to_string(reg);
+    std::string end = "%end_or_" + std::to_string(reg);
+
+    os << "  @" + tmp_var_name << " = alloc i32\n";
+    os << "  store 1, @" + tmp_var_name << "\n";
+    os << "  br " << get_koopa_exp_reg(l_or_exp.get()) << ", " << end << ", "
+       << lhs_false << "\n";
+
+    os << lhs_false << ":\n";
     l_and_exp->print(os);
-    reg = IRManager::getInstance().getNextReg();
-    os << "  %" << reg << " = or " << get_koopa_logical_exp_reg(l_or_exp.get())
-       << ", " << get_koopa_logical_exp_reg(l_and_exp.get()) << "\n";
-    reg = IRManager::getInstance().getNextReg();
-    os << "  %" << reg << " = gt %" << reg - 1 << ", 0\n";
+    os << "  br " << get_koopa_exp_reg(l_and_exp.get()) << ", " << end << ", "
+       << rhs_false << "\n";
+
+    os << rhs_false << ":\n";
+    os << "  store 0, @" + tmp_var_name << "\n";
+    os << "  jump " << end << "\n";
+
+    os << end << ":\n";
+    os << "  %" << reg << " = load @" + tmp_var_name << "\n";
   }
 }
 
@@ -433,27 +469,30 @@ void LAndExpAST::print(std::ostream &os) {
     pushup_exp_reg(eq_exp.get(), this);
   } else {
     l_and_exp->print(os);
-    if (IRManager::getInstance().is_in_if) {
-      int tmp_reg = IRManager::getInstance().getNextReg();
-      std::string next_pos =
-          "%end_" + std::to_string(IRManager::getInstance().getNowIfCount());
-      if (IRManager::getInstance().is_in_if_else) {
-        next_pos =
-            "%else_" + std::to_string(IRManager::getInstance().getNowIfCount());
-      }
-      os << "  %" << tmp_reg << " = ne " << get_koopa_exp_reg(l_and_exp.get())
-         << ", 0\n";
-      os << "  br %" << tmp_reg << ", %continue_" << tmp_reg << ", " << next_pos
-         << "\n";
-      os << "%continue_" << tmp_reg << ":\n";
-    }
+
+    reg = IRManager::getInstance().getNextReg();
+
+    std::string tmp_var_name = "And" + std::to_string(reg) + "_tmp_var";
+    std::string lhs_true = "%lhs_true" + std::to_string(reg);
+    std::string rhs_false = "%rhs_false" + std::to_string(reg);
+    std::string end = "%end_and_" + std::to_string(reg);
+
+    os << "  @" + tmp_var_name << " = alloc i32\n";
+    os << "  store 1, @" + tmp_var_name << "\n";
+    os << "  br " << get_koopa_exp_reg(l_and_exp.get()) << ", " << lhs_true
+       << ", " << rhs_false << "\n";
+
+    os << lhs_true << ":\n";
     eq_exp->print(os);
-    reg = IRManager::getInstance().getNextReg();
-    os << "  %" << reg << " = and "
-       << get_koopa_logical_exp_reg(l_and_exp.get()) << ", "
-       << get_koopa_logical_exp_reg(eq_exp.get()) << "\n";
-    reg = IRManager::getInstance().getNextReg();
-    os << "  %" << reg << " = gt %" << reg - 1 << ", 0\n";
+    os << "  br " << get_koopa_exp_reg(eq_exp.get()) << ", " << end << ", "
+       << rhs_false << "\n";
+
+    os << rhs_false << ":\n";
+    os << "  store 0, @" + tmp_var_name << "\n";
+    os << "  jump " << end << "\n";
+
+    os << end << ":\n";
+    os << "  %" << reg << " = load @" + tmp_var_name << "\n";
   }
 }
 

@@ -104,6 +104,10 @@ bool SymbolTableManger::is_func_has_fparams(const std::string &ident) {
   return table->is_func_has_fparams_map[ident];
 }
 
+bool SymbolTableManger::is_global_table() {
+  return symbol_table_stack.size() == 1;
+}
+
 void SymbolTableManger::alloc_func_has_fparams(const std::string &ident,
                                                bool is_func_has_fparams) {
   get_back_table().is_func_has_fparams_map[ident] = is_func_has_fparams;

@@ -48,6 +48,7 @@ public:
 
   bool is_var_defined(const std::string &ident);
   bool is_func_has_fparams(const std::string &ident);
+  bool is_global_table();
   
 
   SymbolTable &get_stmt_table(BaseAST *stmt);
