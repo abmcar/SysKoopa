@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 #include <cassert>
-#include <memory>
 
 class BaseAST;
 class FuncFParamAST;

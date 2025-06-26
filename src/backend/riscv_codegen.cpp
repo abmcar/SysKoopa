@@ -1,10 +1,9 @@
 // riscv_codegen.cpp
-#include "riscv_codegen.h"
-#include "koopa.h"
-#include "util.h"
-#include <cassert>
 #include <cstddef>
-#include <algorithm>
+#include <iostream>
+
+#include "riscv_codegen.h"
+#include "util.h"
 
 CodeGen::CodeGen(const std::string &koopa_ir) {
   push_addr_manager();

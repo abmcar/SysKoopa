@@ -1,5 +1,6 @@
 #include "util.h"
 #include "ast.h"
+#include <fstream>
 
 void write_file(std::string file_name, std::string file_content) {
   std::ofstream os;                  // 创建一个文件输出流对象
