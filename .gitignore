@@ -6,4 +6,5 @@ hello.s
 .vscode
 .cache
 .clangd
+.cursor
 compile_commands.json
