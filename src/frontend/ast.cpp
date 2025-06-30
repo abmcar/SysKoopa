@@ -162,29 +162,99 @@ void VarDefAST::print(std::ostream &os) {
                           .get_back_table()
                           .lval_ident_map[this->ident];
   bool is_global = SymbolTableManger::getInstance().is_global_table();
+
   if (is_global) {
     if (kind == DefAST::Kind::VAR_IDENT) {
       os << "global @" + ident << " = alloc i32, zeroinit\n";
-    } else {
+    } else if (kind == DefAST::Kind::VAR_DEF) {
       init_val->print(os);
       os << "global @" + ident << " = alloc i32, "
          << get_koopa_exp_reg(init_val.get()) << "\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT) {
+      os << "global @" + ident << " = alloc [i32, " << array_size->calc_number()
+         << "], zeroinit\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_DEF) {
+      os << "global @" + ident << " = alloc [i32, " << array_size->calc_number()
+         << "], {";
+      for (int i = 0; i < array_size->calc_number(); i++) {
+        if (i < init_array_val->size()) {
+          os << init_array_val->at(i)->calc_number();
+        } else {
+          os << "0";
+        }
+        if (i != array_size->calc_number() - 1) {
+          os << ", ";
+        }
+      }
+      os << "}\n";
     }
     SymbolTableManger::getInstance().alloc_ident(this->ident);
     return;
   } else {
-    os << "  @" + ident << " = alloc i32\n";
+    if (kind == DefAST::Kind::VAR_IDENT or kind == DefAST::Kind::VAR_DEF) {
+      os << "  @" + ident << " = alloc i32\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT ||
+               kind == DefAST::Kind::VAR_ARRAY_DEF) {
+      os << "  @" + ident << " = alloc [i32, " << array_size->calc_number()
+         << "]\n";
+      for (int i = 0; i < array_size->calc_number(); i++) {
+        auto reg = IRManager::getInstance().getNextReg();
+        os << "  %" << reg << " = getelemptr @" + ident << ", " << i << "\n";
+        if (kind == DefAST::VAR_ARRAY_DEF && i < init_array_val->size()) {
+          init_array_val->at(i)->print(os);
+          os << "  store " << get_koopa_exp_reg(init_array_val->at(i).get())
+             << ", %" << reg << "\n";
+        } else {
+          os << "  store 0, %" << reg << "\n";
+        }
+      }
+    }
   }
+
   if (kind == DefAST::Kind::VAR_DEF) {
     init_val->print(os);
     os << "  store " << get_koopa_exp_reg(init_val.get()) << ", @" + ident
        << "\n";
   }
+
   SymbolTableManger::getInstance().alloc_ident(this->ident);
 }
 
 void ConstDefAST::print(std::ostream &os) {
   SymbolTableManger::getInstance().alloc_ident(this->ident);
+  auto ident = SymbolTableManger::getInstance().get_ident(this->ident);
+  bool is_global = SymbolTableManger::getInstance().is_global_table();
+
+  if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
+      SymbolTable::DefType::CONST_ARRAY) {
+    auto vec =
+        SymbolTableManger::getInstance().get_const_array_val(this->ident);
+    if (is_global) {
+      os << "global @" << ident << " = alloc [i32, " << array_size << "], {";
+      for (int i = 0; i < array_size; i++) {
+        if (i < vec.size()) {
+          os << vec[i];
+        } else {
+          os << "0";
+        }
+        if (i != array_size - 1) {
+          os << ", ";
+        }
+      }
+      os << "}\n";
+    } else {
+      os << "  @" << ident << " = alloc [i32, " << array_size << "]\n";
+      for (int i = 0; i < array_size; i++) {
+        auto reg = IRManager::getInstance().getNextReg();
+        os << "  %" << reg << " = getelemptr @" + ident << ", " << i << "\n";
+        if (i < vec.size()) {
+          os << "  store " << vec[i] << ", %" << reg << "\n";
+        } else {
+          os << "  store 0, %" << reg << "\n";
+        }
+      }
+    }
+  }
 }
 
 void BlockAST::print(std::ostream &os) {
@@ -201,6 +271,19 @@ void BlockItemAST::print(std::ostream &os) {
     decl->print(os);
   } else if (kind == BlockItemAST::Kind::STMT) {
     stmt->print(os);
+  }
+}
+
+void LValAST::print(std::ostream &os) {
+  if (kind == Kind::IDENT) {
+    os << ident;
+  } else if (kind == Kind::ARRAY_ACCESS) {
+    auto reg = IRManager::getInstance().getNextReg();
+    array_index->print(os);
+    std::string idx = get_koopa_exp_reg(array_index.get());
+    array_index->calc_number();
+    os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
+    os << "  @" << ident << " = %" << reg << "\n";
   }
 }
 
@@ -222,8 +305,18 @@ void StmtAST::print(std::ostream &os) {
     IRManager::getInstance().is_return_map[os.tellp()] = true;
   } else if (kind == StmtAST::Kind::ASSIGN_STMT) {
     r_exp->print(os);
-    std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
-    os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident << "\n";
+    std::string ident =
+        SymbolTableManger::getInstance().get_ident(l_val->ident);
+    if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
+        SymbolTable::DefType::VAR_ARRAY) {
+      auto reg = IRManager::getInstance().getNextReg();
+      l_val->array_index->print(os);
+      std::string idx = get_koopa_exp_reg(l_val->array_index.get());
+      os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
+      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", %" << reg << "\n";
+    } else {
+      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident << "\n";
+    }
   } else if (kind == StmtAST::Kind::BLOCK_STMT) {
     SymbolTableManger::getInstance().use_stmt_table(block.get());
     block->print(os);
@@ -319,14 +412,27 @@ void PrimaryExpAST::print(std::ostream &os) {
     exp->print(os);
     reg = exp->get_reg();
   } else if (kind == Kind::L_VAL) {
-    if (SymbolTableManger::getInstance().get_def_type(l_val) ==
-        SymbolTable::DefType::CONST) {
-      number = SymbolTableManger::getInstance().get_val(l_val);
-      kind = ExpAST::Kind::NUMBER;
-    } else {
+    auto l_val = this->l_val.get();
+    if (l_val->kind == LValAST::Kind::ARRAY_ACCESS) {
+      l_val->array_index->print(os);
+      std::string idx = get_koopa_exp_reg(l_val->array_index.get());
+      int ptr = IRManager::getInstance().getNextReg();
       reg = IRManager::getInstance().getNextReg();
-      std::string ident = SymbolTableManger::getInstance().get_ident(l_val);
-      os << "  %" << reg << " = load @" + ident << "\n";
+      std::string ident =
+          SymbolTableManger::getInstance().get_ident(l_val->ident);
+      os << "  %" << ptr << " = getelemptr @" + ident << ", " << idx << "\n";
+      os << "  %" << reg << " = load %" << ptr << "\n";
+    } else {
+      if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
+          SymbolTable::DefType::CONST) {
+        number = SymbolTableManger::getInstance().get_val(l_val->ident);
+        kind = ExpAST::Kind::NUMBER;
+      } else {
+        reg = IRManager::getInstance().getNextReg();
+        std::string ident =
+            SymbolTableManger::getInstance().get_ident(l_val->ident);
+        os << "  %" << reg << " = load @" + ident << "\n";
+      }
     }
   }
 }
@@ -569,7 +675,9 @@ int PrimaryExpAST::calc_number() {
       return exp->calc_number();
     }
     if (kind == Kind::L_VAL) {
-      return SymbolTableManger::getInstance().get_back_table().val_map[l_val];
+      return SymbolTableManger::getInstance()
+          .get_back_table()
+          .val_map[l_val->ident];
     }
     assert(false);
     return 0;

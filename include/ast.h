@@ -114,7 +114,7 @@ public:
 
 class DefAST : public BaseAST {
 public:
-  enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT };
+  enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT, VAR_ARRAY_DEF, VAR_ARRAY_IDENT };
   Kind kind;
   std::string ident;
   void print(std::ostream &os) override{};
@@ -139,12 +139,16 @@ public:
 class VarDefAST : public DefAST {
 public:
   std::unique_ptr<ExpAST> init_val;
+  std::unique_ptr<ExpAST> array_size; // 数组大小（仅在数组声明时使用）
+  std::vector<std::unique_ptr<ExpAST>> *init_array_val; // 数组初始化值列表
   void print(std::ostream &os) override;
 };
 
 class ConstDefAST : public DefAST {
 public:
   int const_init_val;
+  int array_size; // 数组大小（仅在数组声明时使用）
+  std::vector<int> *const_init_array_val;
   void print(std::ostream &os) override;
 };
 
@@ -165,6 +169,15 @@ public:
 
 class ExpAST;
 
+class LValAST : public BaseAST {
+public:
+  enum Kind { IDENT, ARRAY_ACCESS };
+  Kind kind;
+  std::string ident;
+  std::unique_ptr<ExpAST> array_index; // 仅在 ARRAY_ACCESS 时使用
+  void print(std::ostream &os) override;
+};
+
 class StmtAST : public BaseAST {
 public:
   enum Kind {
@@ -181,7 +194,7 @@ public:
   };
   Kind kind;
   std::unique_ptr<ExpAST> exp;
-  std::string l_val;
+  std::unique_ptr<LValAST> l_val;
   std::unique_ptr<ExpAST> r_exp;
   std::unique_ptr<BaseAST> block;
   std::unique_ptr<ExpAST> if_exp;
@@ -227,7 +240,7 @@ protected:
 class PrimaryExpAST : public ExpAST {
 public:
   std::unique_ptr<ExpAST> exp;
-  std::string l_val;
+  std::unique_ptr<LValAST> l_val;
   void print(std::ostream &os) override;
   int calc_number() override;
 };
