@@ -9,9 +9,10 @@ class FuncFParamAST;
 
 class SymbolTable {
 public:
-  enum class DefType { CONST, VAR_IDENT, VAR_EXP, FUNC_VOID, FUNC_INT};
+  enum class DefType { CONST, VAR_IDENT, VAR_EXP, FUNC_VOID, FUNC_INT, CONST_ARRAY, VAR_ARRAY};
 
   std::map<std::string, int> val_map;
+  std::map<std::string, std::vector<int>> const_array_val_map;
   std::map<std::string, std::string> type_map;
   std::map<std::string, DefType> def_type_map;
 
@@ -34,6 +35,7 @@ public:
   std::string get_ident(const std::string &ident);
   std::string get_lval_ident(const std::string &ident);
   SymbolTable::DefType get_def_type(const std::string &ident);
+  std::vector<int> get_const_array_val(const std::string &ident);
   std::vector<FuncFParamAST> get_func_fparams(const std::string &ident);
 
   void alloc_ident(const std::string &ident);

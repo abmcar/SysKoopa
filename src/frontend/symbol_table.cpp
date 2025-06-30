@@ -12,7 +12,9 @@ bool SymbolTable::is_var_defined(const std::string &ident) {
     return false;
   }
   if (def_type_map[ident] == DefType::VAR_EXP ||
-      def_type_map[ident] == DefType::VAR_IDENT) {
+      def_type_map[ident] == DefType::VAR_IDENT ||
+      def_type_map[ident] == DefType::CONST_ARRAY ||
+      def_type_map[ident] == DefType::VAR_ARRAY) {
     return true;
   } else {
     return false;
@@ -89,6 +91,12 @@ bool SymbolTableManger::is_var_defined(const std::string &ident) {
 void SymbolTableManger::alloc_func_fparams(
     const std::string &ident, std::vector<FuncFParamAST> func_fparams) {
   get_back_table().func_fparams_map[ident] = std::move(func_fparams);
+}
+
+std::vector<int> SymbolTableManger::get_const_array_val(const std::string &ident) {
+  auto table = find_table(ident);
+  assert(table);
+  return table->const_array_val_map[ident];
 }
 
 std::vector<FuncFParamAST>
