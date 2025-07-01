@@ -197,17 +197,19 @@ void VarDefAST::print(std::ostream &os) {
                kind == DefAST::Kind::VAR_ARRAY_DEF) {
       os << "  @" + ident << " = alloc [i32, " << array_size->calc_number()
          << "]\n";
+      os << "  store {";
+
       for (int i = 0; i < array_size->calc_number(); i++) {
-        auto reg = IRManager::getInstance().getNextReg();
-        os << "  %" << reg << " = getelemptr @" + ident << ", " << i << "\n";
         if (kind == DefAST::VAR_ARRAY_DEF && i < init_array_val->size()) {
-          init_array_val->at(i)->print(os);
-          os << "  store " << get_koopa_exp_reg(init_array_val->at(i).get())
-             << ", %" << reg << "\n";
+          os << init_array_val->at(i)->calc_number();
         } else {
-          os << "  store 0, %" << reg << "\n";
+          os << "0";
+        }
+        if (i != array_size->calc_number() - 1) {
+          os << ", ";
         }
       }
+      os << "}, @" + ident << "\n";
     }
   }
 
@@ -244,15 +246,18 @@ void ConstDefAST::print(std::ostream &os) {
       os << "}\n";
     } else {
       os << "  @" << ident << " = alloc [i32, " << array_size << "]\n";
+      os << "  store {";
       for (int i = 0; i < array_size; i++) {
-        auto reg = IRManager::getInstance().getNextReg();
-        os << "  %" << reg << " = getelemptr @" + ident << ", " << i << "\n";
         if (i < vec.size()) {
-          os << "  store " << vec[i] << ", %" << reg << "\n";
+          os << vec[i];
         } else {
-          os << "  store 0, %" << reg << "\n";
+          os << "0";
+        }
+        if (i != array_size - 1) {
+          os << ", ";
         }
       }
+      os << "}, @" << ident << "\n";
     }
   }
 }
@@ -313,9 +318,11 @@ void StmtAST::print(std::ostream &os) {
       l_val->array_index->print(os);
       std::string idx = get_koopa_exp_reg(l_val->array_index.get());
       os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
-      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", %" << reg << "\n";
+      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", %" << reg
+         << "\n";
     } else {
-      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident << "\n";
+      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident
+         << "\n";
     }
   } else if (kind == StmtAST::Kind::BLOCK_STMT) {
     SymbolTableManger::getInstance().use_stmt_table(block.get());
