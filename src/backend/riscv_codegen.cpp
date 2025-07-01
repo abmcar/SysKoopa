@@ -330,6 +330,7 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
         store.dest->kind.data.get_elem_ptr);
     oss << "  li t6, " << dest_offset << "\n";
     oss << "  add t6, sp, t6\n";
+    oss << "  lw t6, 0(t6)\n"; 
     dest_str = "0(t6)";
   } else {
     int dest_offset = get_stack_offset_manager().getOffset(dest_name);
