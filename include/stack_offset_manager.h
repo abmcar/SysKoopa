@@ -16,6 +16,9 @@ public:
   int getOffset(const koopa_raw_load_t &load);
   int getOffset(const std::string &alloc_name);
   int getOffset(const koopa_raw_value_t &value);
+  int getOffset(const koopa_raw_get_elem_ptr_t &get_elem_ptr);
+  int getOffset(const koopa_raw_get_ptr_t &get_ptr);
+  int getOffset(const koopa_raw_aggregate_t &aggregate);
   void clear();
 
   int current_stack_offset = 0;
@@ -32,6 +35,9 @@ private:
   std::unordered_map<int, int> func_arg_idx_id_map;
   std::unordered_map<const koopa_raw_call_t *, int> call_id_map;
   std::unordered_map<int, int> id_to_offset_map;
+  std::unordered_map<const koopa_raw_get_elem_ptr_t *, int> get_elem_ptr_id_map;
+  std::unordered_map<const koopa_raw_get_ptr_t *, int> get_ptr_id_map;
+  std::unordered_map<const koopa_raw_aggregate_t *, int> aggregate_id_map;
 
   int id_counter = 0;
 };
