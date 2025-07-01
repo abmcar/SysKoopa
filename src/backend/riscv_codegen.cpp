@@ -442,7 +442,6 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
         << "\n";
     auto idx_addr = addr_manager.getAddr(get_elem_ptr.index);
     cmd_li(get_elem_ptr.index, idx_addr);
-    oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
     oss << "  li t6, " << 4 << "\n";
     oss << "  mul t6, " << idx_addr << ", t6\n";
     oss << "  add " << res_addr << ", " << res_addr << ", t6\n";
