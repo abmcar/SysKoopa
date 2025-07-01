@@ -42,7 +42,7 @@ void pushup_exp_reg(ExpAST *exp, ExpAST *parent) {
 void modify_sp(int offset, std::stringstream &oss) {
   if (offset > 2047 || offset < -2048) {
     oss << "  li t0, " << offset << "\n";
-    oss << "  addi sp, sp, t0\n";
+    oss << "  add sp, sp, t0\n";
   } else {
     oss << "  addi sp, sp, " << offset << "\n";
   }
