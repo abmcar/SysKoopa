@@ -86,7 +86,9 @@ void FuncDefAST::print(std::ostream &os) {
     int n = func_fparams.size();
     for (int i = 0; i < n; i++) {
       os << "@" << func_fparams[i].ident << ": ";
-      if (func_fparams[i].b_type == "int") {
+      if (func_fparams[i].array_dims != nullptr) {
+        os << "*i32"; // TODO: support multi-dimensional arrays
+      } else if (func_fparams[i].b_type == "int") {
         os << "i32";
       } else {
         assert(false);
@@ -114,13 +116,20 @@ void FuncDefAST::print(std::ostream &os) {
       SymbolTableManger::getInstance()
           .get_back_table()
           .def_type_map[func_fparams[i].ident] =
-          SymbolTable::DefType::VAR_IDENT;
+          func_fparams[i].array_dims != nullptr
+              ? SymbolTable::DefType::VAR_ARRAY
+              : SymbolTable::DefType::VAR_IDENT;
       SymbolTableManger::getInstance()
           .get_back_table()
           .lval_ident_map[func_fparams[i].ident] =
           this->ident + "_" + func_fparams[i].ident;
-      os << "  @" << this->ident << "_" << func_fparams[i].ident
-         << " = alloc i32\n";
+      if (func_fparams[i].array_dims != nullptr) {
+        os << "  @" << this->ident << "_" << func_fparams[i].ident
+           << " = alloc *i32\n"; // TODO: real array param handling
+      } else {
+        os << "  @" << this->ident << "_" << func_fparams[i].ident
+           << " = alloc i32\n";
+      }
       os << "  store @" << func_fparams[i].ident << ", @" << this->ident << "_"
          << func_fparams[i].ident << "\n";
     }

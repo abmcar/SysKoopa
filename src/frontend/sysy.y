@@ -75,7 +75,7 @@ using namespace std;
 %type <ast_vec_val> BlockItemList CompUnitList
 %type <def_ast_val> ConstDef VarDef 
 %type <def_ast_vec_val> ConstDefList VarDefList 
-%type <exp_ast_vec_val> FuncRParamList IndexList DimList
+%type <exp_ast_vec_val> FuncRParamList IndexList DimList FuncFParamDimList
 %type <init_val_ast_vec_val> InitValList InitValListOpt
 %type <func_fparam_ast_vec_val> FuncFParamList
 %type <const_init_val_ast_val> ConstInitVal
@@ -133,14 +133,32 @@ FuncFParamList
   }
   ;
 
-// FuncFParam ::= BType IDENT;
+// FuncFParam ::= BType IDENT
+//              | BType IDENT "[" "]" { "[" ConstExp "]" }
 FuncFParam
   : Type IDENT {
     auto ast = new FuncFParamAST();
     ast->b_type = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
+    ast->array_dims = nullptr;
     $$ = ast;
   }
+  | Type IDENT '[' ']' FuncFParamDimList {
+    auto ast = new FuncFParamAST();
+    ast->b_type = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->array_dims = $5;
+    $$ = ast;
+  }
+  ;
+
+FuncFParamDimList
+  : /* empty */ { auto vec = new vector<std::unique_ptr<ExpAST>>(); $$ = vec; }
+  | FuncFParamDimList '[' ConstExp ']' {
+      auto vec = $1;
+      vec->push_back(std::unique_ptr<ExpAST>($3));
+      $$ = vec;
+    }
   ;
 
 // FuncDef ::= FuncType IDENT '(' [FuncFParamList] ')' Block;
