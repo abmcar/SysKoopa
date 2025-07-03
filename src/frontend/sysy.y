@@ -43,9 +43,13 @@ using namespace std;
   ExpAST *exp_ast_val;
   DefAST *def_ast_val;
   LValAST *lval_ast_val;
+  InitValAST *init_val_ast_val;
+  ConstInitValAST *const_init_val_ast_val;
   std::vector<std::unique_ptr<BaseAST>> *ast_vec_val;
   std::vector<std::unique_ptr<DefAST>> *def_ast_vec_val;
   std::vector<std::unique_ptr<ExpAST>> *exp_ast_vec_val;
+  std::vector<std::unique_ptr<InitValAST>> *init_val_ast_vec_val;
+  std::vector<std::unique_ptr<ConstInitValAST>> *const_init_val_ast_vec_val;
   std::vector<FuncFParamAST> *func_fparam_ast_vec_val;
   std::vector<int> *int_vec_val;
 }
@@ -66,13 +70,16 @@ using namespace std;
 %type <str_val> Type
 %type <lval_ast_val> LVal
 %type <unary_op_kind> UnaryOp
-%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp InitVal
+%type <exp_ast_val> Exp PrimaryExp UnaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp ConstExp
+%type <init_val_ast_val> InitVal
 %type <ast_vec_val> BlockItemList CompUnitList
 %type <def_ast_val> ConstDef VarDef 
 %type <def_ast_vec_val> ConstDefList VarDefList 
-%type <exp_ast_vec_val> FuncRParamList InitValList InitValInnerList
+%type <exp_ast_vec_val> FuncRParamList IndexList DimList
+%type <init_val_ast_vec_val> InitValList InitValListOpt
 %type <func_fparam_ast_vec_val> FuncFParamList
-%type <int_vec_val> ConstInitValList ConstInitVal 
+%type <const_init_val_ast_val> ConstInitVal
+%type <const_init_val_ast_vec_val> ConstInitValList ConstInitValListOpt
 %%
 
 // CompUnit ::= [CompUnit] (FuncDef | Decl) ;
@@ -243,81 +250,89 @@ VarDefList
   }
   ;
 
-// VarDef ::= IDENT ["[" ConstExp "]"] | IDENT ["[" ConstExp "]"] "=" InitVal;
+// VarDef ::= IDENT {"[" ConstExp "]"} | IDENT {"[" ConstExp "]"} '=' InitVal;
 VarDef
-  : IDENT {
+  : IDENT DimList {
     auto ast = new VarDefAST();
-    ast->kind = DefAST::Kind::VAR_IDENT;
     ast->ident = *unique_ptr<string>($1);
-    ast->array_size = nullptr;
-    ast->init_array_val = nullptr;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_IDENT;
+    ast->array_dims = $2;
+    if ($2->empty()) {
+      ast->kind = DefAST::Kind::VAR_IDENT;
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_IDENT;
+    } else {
+      ast->kind = DefAST::Kind::VAR_ARRAY_IDENT;
+      std::vector<int> dims; for(auto &d:*$2) dims.push_back(d->calc_number());
+      SymbolTableManger::getInstance().set_array_dims(ast->ident, dims);
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_ARRAY;
+    }
     SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
-  | IDENT '=' InitVal {
+  | IDENT DimList '=' InitVal {
     auto ast = new VarDefAST();
-    ast->kind = DefAST::Kind::VAR_DEF;
     ast->ident = *unique_ptr<string>($1);
-    ast->init_val = unique_ptr<ExpAST>($3);
-    ast->array_size = nullptr;
-    ast->init_array_val = nullptr;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
-    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
-    $$ = ast;
-  }
-  | IDENT '[' ConstExp ']' {
-    auto ast = new VarDefAST();
-    ast->kind = DefAST::Kind::VAR_ARRAY_IDENT;
-    ast->ident = *unique_ptr<string>($1);
-    ast->array_size = unique_ptr<ExpAST>($3);
-    ast->init_array_val = nullptr;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_ARRAY;
-    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
-    $$ = ast;
-  }
-  | IDENT '[' ConstExp ']' '=' InitValList {
-    auto ast = new VarDefAST();
-    ast->kind = DefAST::Kind::VAR_ARRAY_DEF;
-    ast->ident = *unique_ptr<string>($1);
-    ast->array_size = unique_ptr<ExpAST>($3);
-    ast->init_array_val = $6;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_ARRAY;
+    ast->array_dims = $2;
+    ast->init_val = std::unique_ptr<InitValAST>($4);
+    if ($2->empty()) {
+      ast->kind = DefAST::Kind::VAR_DEF;
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_EXP;
+    } else {
+      ast->kind = DefAST::Kind::VAR_ARRAY_DEF;
+      std::vector<int> dims; for(auto &d:*$2) dims.push_back(d->calc_number());
+      SymbolTableManger::getInstance().set_array_dims(ast->ident, dims);
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::VAR_ARRAY;
+    }
     SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
   ;
 
-// InitVal ::= Exp | "{" [Exp {"," Exp}] "}";
+DimList
+  : /* empty */ { auto vec = new vector<std::unique_ptr<ExpAST>>(); $$ = vec; }
+  | DimList '[' ConstExp ']' {
+      auto vec = $1;
+      vec->push_back(std::unique_ptr<ExpAST>($3));
+      $$ = vec;
+    }
+  ;
+
+// InitVal ::= Exp | "{" [InitVal {"," InitVal}] "}";
 InitVal
   : Exp {
-    $$ = $1;
+    auto node = new InitValAST();
+    node->kind = InitValAST::EXP;
+    node->exp = std::unique_ptr<ExpAST>($1);
+    $$ = node;
+  }
+  | '{' InitValListOpt '}' {
+    auto node = new InitValAST();
+    node->kind = InitValAST::LIST;
+    node->list = $2;
+    $$ = node;
   }
   ;
 
-// InitValList ::= "{" [Exp {"," Exp}] "}";
+InitValListOpt
+  : /* empty */ {
+      auto vec = new vector<std::unique_ptr<InitValAST>>();
+      $$ = vec;
+    }
+  | InitValList {
+      $$ = $1;
+    }
+  ;
+
 InitValList
-  : '{' '}' {
-    auto vec = new vector<unique_ptr<ExpAST>>();
-    $$ = vec;
-  }
-  | '{' InitValInnerList '}' {
-    $$ = $2;
-  }
-  ;
-
-// InitValInnerList ::= Exp {"," Exp};
-InitValInnerList
-  : Exp {
-    auto vec = new vector<unique_ptr<ExpAST>>();
-    vec->push_back(unique_ptr<ExpAST>($1));
-    $$ = vec;
-  }
-  | InitValInnerList ',' Exp {
-    auto vec = $1;
-    vec->push_back(unique_ptr<ExpAST>($3));
-    $$ = vec;
-  }
+  : InitVal {
+      auto vec = new vector<std::unique_ptr<InitValAST>>();
+      vec->push_back(std::unique_ptr<InitValAST>($1));
+      $$ = vec;
+    }
+  | InitValList ',' InitVal {
+      auto vec = $1;
+      vec->push_back(std::unique_ptr<InitValAST>($3));
+      $$ = vec;
+    }
   ;
 
 // ConstDefList ::= ConstDef {"," ConstDef};
@@ -337,60 +352,60 @@ ConstDefList
   }
   ;
 
-// ConstDef ::= IDENT ["[" ConstExp "]"] "=" ConstInitVal;
+// ConstDef ::= IDENT {"[" ConstExp "]"} '=' ConstInitVal;
 ConstDef
-  : IDENT '=' ConstInitVal {
+  : IDENT DimList '=' ConstInitVal {
     auto ast = new ConstDefAST();
-    ast->kind = DefAST::Kind::CONST_DEF;
     ast->ident = *unique_ptr<string>($1);
-    ast->const_init_val = $3->front();
-    SymbolTableManger::getInstance().get_back_table().val_map[ast->ident] = ast->const_init_val;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::CONST;
-    SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
-    $$ = ast;
-  }
-  | IDENT '[' ConstExp ']' '=' ConstInitVal {
-    auto ast = new ConstDefAST();
-    ast->kind = DefAST::Kind::CONST_DEF;
-    ast->ident = *unique_ptr<string>($1);
-    ast->array_size = $3->calc_number();
-    ast->const_init_array_val = $6;
-    SymbolTableManger::getInstance().get_back_table().const_array_val_map[ast->ident] = *ast->const_init_array_val;
-    SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::CONST_ARRAY;
+    for (auto &d : *$2) ast->array_dims.push_back(d->calc_number());
+    ast->const_init_val_ast = std::unique_ptr<ConstInitValAST>($4);
+    if (ast->array_dims.empty()) {
+      ast->kind = DefAST::Kind::CONST_DEF;
+      ast->const_init_val = ast->const_init_val_ast->exp->calc_number();
+      SymbolTableManger::getInstance().get_back_table().val_map[ast->ident] = ast->const_init_val;
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::CONST;
+    } else {
+      ast->kind = DefAST::Kind::CONST_DEF;
+      SymbolTableManger::getInstance().set_array_dims(ast->ident, ast->array_dims);
+      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::CONST_ARRAY;
+    }
     SymbolTableManger::getInstance().get_back_table().lval_ident_map[ast->ident] = SymbolTableManger::getInstance().get_lval_ident(ast->ident);
     $$ = ast;
   }
   ;
 
-// ConstInitVal ::= ConstExp | "{" [ConstExp {"," ConstExp}] "}";
+// ConstInitVal ::= ConstExp | "{" [ConstInitVal {"," ConstInitVal}] "}";
 ConstInitVal
   : ConstExp {
-    auto vec = new vector<int>();
-    vec->push_back($1->calc_number());
-    $$ = vec;
-  }
-  | '{' '}' %prec ARRAY_DEF {
-    // 空的常量初始化列表
-    auto vec = new vector<int>();
-    $$ = vec;
-  }
-  | '{' ConstInitValList '}' %prec ARRAY_DEF {
-    $$ = $2;
-  }
+      auto node = new ConstInitValAST();
+      node->kind = ConstInitValAST::EXP;
+      node->exp = std::unique_ptr<ExpAST>($1);
+      $$ = node;
+    }
+  | '{' ConstInitValListOpt '}' %prec ARRAY_DEF {
+      auto node = new ConstInitValAST();
+      node->kind = ConstInitValAST::LIST;
+      node->list = $2;
+      $$ = node;
+    }
   ;
 
-// ConstInitValList ::= ConstInitVal {"," ConstInitVal};
+ConstInitValListOpt
+  : /* empty */ { auto vec = new vector<std::unique_ptr<ConstInitValAST>>(); $$ = vec; }
+  | ConstInitValList { $$ = $1; }
+  ;
+
 ConstInitValList
-  : ConstExp {
-    auto vec = new vector<int>();
-    vec->push_back($1->calc_number());
-    $$ = vec;
-  }
-  | ConstInitValList ',' ConstExp {
-    auto vec = $1;
-    vec->push_back($3->calc_number());
-    $$ = vec;
-  }
+  : ConstInitVal {
+      auto vec = new vector<std::unique_ptr<ConstInitValAST>>();
+      vec->push_back(std::unique_ptr<ConstInitValAST>($1));
+      $$ = vec;
+    }
+  | ConstInitValList ',' ConstInitVal {
+      auto vec = $1;
+      vec->push_back(std::unique_ptr<ConstInitValAST>($3));
+      $$ = vec;
+    }
   ;
 
 // Block ::= "{" {BlockItem} "}";
@@ -608,19 +623,29 @@ PrimaryExp
   ;
 
 LVal
-  : IDENT {
+  : IDENT IndexList {
     auto ast = new LValAST();
-    ast->kind = LValAST::Kind::IDENT;
     ast->ident = *unique_ptr<string>($1);
+    ast->array_index_list = $2;
+    if ($2->empty()) {
+      ast->kind = LValAST::Kind::IDENT;
+    } else {
+      ast->kind = LValAST::Kind::ARRAY_ACCESS;
+    }
     $$ = ast;
   }
-  | IDENT '[' Exp ']' { 
-    auto ast = new LValAST();
-    ast->kind = LValAST::Kind::ARRAY_ACCESS;
-    ast->ident = *unique_ptr<string>($1);
-    ast->array_index = unique_ptr<ExpAST>($3);
-    $$ = ast;
-  }
+  ;
+
+IndexList
+  : /* empty */ {
+      auto vec = new vector<std::unique_ptr<ExpAST>>();
+      $$ = vec;
+    }
+  | IndexList '[' Exp ']' {
+      auto vec = $1;
+      vec->push_back(std::unique_ptr<ExpAST>($3));
+      $$ = vec;
+    }
   ;
 
 // UnaryOp ::= "+" | "-" | "!";
