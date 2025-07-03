@@ -136,19 +136,36 @@ public:
   void print(std::ostream &os) override;
 };
 
+class InitValAST : public BaseAST {
+public:
+  enum Kind { EXP, LIST };
+  Kind kind;
+  std::unique_ptr<ExpAST> exp;                                     // EXP
+  std::vector<std::unique_ptr<InitValAST>> *list = nullptr; // LIST
+  void print(std::ostream &os) override;
+};
+
+class ConstInitValAST : public BaseAST {
+public:
+  enum Kind { EXP, LIST };
+  Kind kind;
+  std::unique_ptr<ExpAST> exp;
+  std::vector<std::unique_ptr<ConstInitValAST>> *list = nullptr;
+  void print(std::ostream &os) override;
+};
+
 class VarDefAST : public DefAST {
 public:
-  std::unique_ptr<ExpAST> init_val;
-  std::unique_ptr<ExpAST> array_size; // 数组大小（仅在数组声明时使用）
-  std::vector<std::unique_ptr<ExpAST>> *init_array_val; // 数组初始化值列表
+  std::unique_ptr<InitValAST> init_val;
+  std::vector<std::unique_ptr<ExpAST>> *array_dims = nullptr; // 多维数组尺寸
   void print(std::ostream &os) override;
 };
 
 class ConstDefAST : public DefAST {
 public:
-  int const_init_val;
-  int array_size; // 数组大小（仅在数组声明时使用）
-  std::vector<int> *const_init_array_val;
+  int const_init_val = 0;
+  std::vector<int> array_dims; // 多维数组尺寸
+  std::unique_ptr<ConstInitValAST> const_init_val_ast;
   void print(std::ostream &os) override;
 };
 
@@ -174,7 +191,7 @@ public:
   enum Kind { IDENT, ARRAY_ACCESS };
   Kind kind;
   std::string ident;
-  std::unique_ptr<ExpAST> array_index; // 仅在 ARRAY_ACCESS 时使用
+  std::vector<std::unique_ptr<ExpAST>> *array_index_list = nullptr; // 多维数组下标
   void print(std::ostream &os) override;
 };
 

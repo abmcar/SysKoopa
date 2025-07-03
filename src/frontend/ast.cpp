@@ -157,65 +157,69 @@ void VarDeclAST::print(std::ostream &os) {
   }
 }
 
+void InitValAST::print(std::ostream &os) {
+  if (kind == Kind::EXP && exp) {
+    exp->print(os);
+  } else {
+    // TODO: handle list initialization for multi-dimensional array
+  }
+}
+
+void ConstInitValAST::print(std::ostream &os) {
+  if (kind == Kind::EXP && exp) {
+    exp->print(os);
+  } else {
+    // TODO: handle const list initialization for multi-dimensional array
+  }
+}
+
 void VarDefAST::print(std::ostream &os) {
   std::string ident = SymbolTableManger::getInstance()
                           .get_back_table()
                           .lval_ident_map[this->ident];
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
+  int first_dim =
+      (array_dims && !array_dims->empty()) ? array_dims->at(0)->calc_number() : 0;
+
   if (is_global) {
     if (kind == DefAST::Kind::VAR_IDENT) {
       os << "global @" + ident << " = alloc i32, zeroinit\n";
     } else if (kind == DefAST::Kind::VAR_DEF) {
-      init_val->print(os);
+      if (init_val)
+        init_val->print(os);
       os << "global @" + ident << " = alloc i32, "
-         << get_koopa_exp_reg(init_val.get()) << "\n";
-    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT) {
-      os << "global @" + ident << " = alloc [i32, " << array_size->calc_number()
+         << get_koopa_exp_reg(init_val ? init_val->exp.get() : nullptr) << "\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT && array_dims->size() == 1) {
+      os << "global @" + ident << " = alloc [i32, " << first_dim
          << "], zeroinit\n";
-    } else if (kind == DefAST::Kind::VAR_ARRAY_DEF) {
-      os << "global @" + ident << " = alloc [i32, " << array_size->calc_number()
-         << "], {";
-      for (int i = 0; i < array_size->calc_number(); i++) {
-        if (i < init_array_val->size()) {
-          os << init_array_val->at(i)->calc_number();
-        } else {
-          os << "0";
-        }
-        if (i != array_size->calc_number() - 1) {
-          os << ", ";
-        }
-      }
+    } else if (kind == DefAST::Kind::VAR_ARRAY_DEF && array_dims->size() == 1) {
+      os << "global @" + ident << " = alloc [i32, " << first_dim << "], {";
+      // TODO multi-dimensional array init
       os << "}\n";
+    } else {
+      os << "  # TODO multi-dimensional global array\n";
     }
     SymbolTableManger::getInstance().alloc_ident(this->ident);
     return;
   } else {
-    if (kind == DefAST::Kind::VAR_IDENT or kind == DefAST::Kind::VAR_DEF) {
+    if (kind == DefAST::Kind::VAR_IDENT || kind == DefAST::Kind::VAR_DEF) {
       os << "  @" + ident << " = alloc i32\n";
-    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT ||
-               kind == DefAST::Kind::VAR_ARRAY_DEF) {
-      os << "  @" + ident << " = alloc [i32, " << array_size->calc_number()
-         << "]\n";
+    } else if ((kind == DefAST::Kind::VAR_ARRAY_IDENT ||
+                kind == DefAST::Kind::VAR_ARRAY_DEF) &&
+               array_dims->size() == 1) {
+      os << "  @" + ident << " = alloc [i32, " << first_dim << "]\n";
       os << "  store {";
-
-      for (int i = 0; i < array_size->calc_number(); i++) {
-        if (kind == DefAST::VAR_ARRAY_DEF && i < init_array_val->size()) {
-          os << init_array_val->at(i)->calc_number();
-        } else {
-          os << "0";
-        }
-        if (i != array_size->calc_number() - 1) {
-          os << ", ";
-        }
-      }
+      // TODO init for multi-dim
       os << "}, @" + ident << "\n";
+    } else {
+      os << "  # TODO multi-dimensional local array\n";
     }
   }
 
-  if (kind == DefAST::Kind::VAR_DEF) {
+  if (kind == DefAST::Kind::VAR_DEF && init_val) {
     init_val->print(os);
-    os << "  store " << get_koopa_exp_reg(init_val.get()) << ", @" + ident
+    os << "  store " << get_koopa_exp_reg(init_val ? init_val->exp.get() : nullptr) << ", @" + ident
        << "\n";
   }
 
@@ -228,37 +232,42 @@ void ConstDefAST::print(std::ostream &os) {
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
   if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
-      SymbolTable::DefType::CONST_ARRAY) {
+      SymbolTable::DefType::CONST_ARRAY && !array_dims.empty() &&
+      array_dims.size() == 1) {
     auto vec =
         SymbolTableManger::getInstance().get_const_array_val(this->ident);
+    int size = array_dims[0];
     if (is_global) {
-      os << "global @" << ident << " = alloc [i32, " << array_size << "], {";
-      for (int i = 0; i < array_size; i++) {
+      os << "global @" << ident << " = alloc [i32, " << size << "], {";
+      for (int i = 0; i < size; i++) {
         if (i < vec.size()) {
           os << vec[i];
         } else {
           os << "0";
         }
-        if (i != array_size - 1) {
+        if (i != size - 1) {
           os << ", ";
         }
       }
       os << "}\n";
     } else {
-      os << "  @" << ident << " = alloc [i32, " << array_size << "]\n";
+      os << "  @" << ident << " = alloc [i32, " << size << "]\n";
       os << "  store {";
-      for (int i = 0; i < array_size; i++) {
+      for (int i = 0; i < size; i++) {
         if (i < vec.size()) {
           os << vec[i];
         } else {
           os << "0";
         }
-        if (i != array_size - 1) {
+        if (i != size - 1) {
           os << ", ";
         }
       }
       os << "}, @" << ident << "\n";
     }
+  } else if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
+             SymbolTable::DefType::CONST) {
+    // TODO multi-dimensional const array
   }
 }
 
@@ -283,12 +292,16 @@ void LValAST::print(std::ostream &os) {
   if (kind == Kind::IDENT) {
     os << ident;
   } else if (kind == Kind::ARRAY_ACCESS) {
-    auto reg = IRManager::getInstance().getNextReg();
-    array_index->print(os);
-    std::string idx = get_koopa_exp_reg(array_index.get());
-    array_index->calc_number();
-    os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
-    os << "  @" << ident << " = %" << reg << "\n";
+    if (array_index_list->size() == 1) {
+      auto reg = IRManager::getInstance().getNextReg();
+      array_index_list->at(0)->print(os);
+      std::string idx = get_koopa_exp_reg(array_index_list->at(0).get());
+      array_index_list->at(0)->calc_number();
+      os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
+      os << "  @" << ident << " = %" << reg << "\n";
+    } else {
+      os << "  # TODO multi-dimensional array access\n";
+    }
   }
 }
 
@@ -313,13 +326,17 @@ void StmtAST::print(std::ostream &os) {
     std::string ident =
         SymbolTableManger::getInstance().get_ident(l_val->ident);
     if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
-        SymbolTable::DefType::VAR_ARRAY) {
+        SymbolTable::DefType::VAR_ARRAY &&
+        l_val->array_index_list->size() == 1) {
       auto reg = IRManager::getInstance().getNextReg();
-      l_val->array_index->print(os);
-      std::string idx = get_koopa_exp_reg(l_val->array_index.get());
+      l_val->array_index_list->at(0)->print(os);
+      std::string idx = get_koopa_exp_reg(l_val->array_index_list->at(0).get());
       os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
       os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", %" << reg
          << "\n";
+    } else if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
+               SymbolTable::DefType::VAR_ARRAY) {
+      os << "  # TODO multi-dimensional array assignment\n";
     } else {
       os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident
          << "\n";
@@ -421,14 +438,19 @@ void PrimaryExpAST::print(std::ostream &os) {
   } else if (kind == Kind::L_VAL) {
     auto l_val = this->l_val.get();
     if (l_val->kind == LValAST::Kind::ARRAY_ACCESS) {
-      l_val->array_index->print(os);
-      std::string idx = get_koopa_exp_reg(l_val->array_index.get());
-      int ptr = IRManager::getInstance().getNextReg();
-      reg = IRManager::getInstance().getNextReg();
-      std::string ident =
-          SymbolTableManger::getInstance().get_ident(l_val->ident);
-      os << "  %" << ptr << " = getelemptr @" + ident << ", " << idx << "\n";
-      os << "  %" << reg << " = load %" << ptr << "\n";
+      if (l_val->array_index_list->size() == 1) {
+        l_val->array_index_list->at(0)->print(os);
+        std::string idx =
+            get_koopa_exp_reg(l_val->array_index_list->at(0).get());
+        int ptr = IRManager::getInstance().getNextReg();
+        reg = IRManager::getInstance().getNextReg();
+        std::string ident =
+            SymbolTableManger::getInstance().get_ident(l_val->ident);
+        os << "  %" << ptr << " = getelemptr @" + ident << ", " << idx << "\n";
+        os << "  %" << reg << " = load %" << ptr << "\n";
+      } else {
+        os << "  # TODO multi-dimensional array load\n";
+      }
     } else {
       if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
           SymbolTable::DefType::CONST) {

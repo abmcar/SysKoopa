@@ -99,6 +99,17 @@ std::vector<int> SymbolTableManger::get_const_array_val(const std::string &ident
   return table->const_array_val_map[ident];
 }
 
+std::vector<int> SymbolTableManger::get_array_dims(const std::string &ident) {
+  auto table = find_table(ident);
+  assert(table);
+  return table->array_dims_map[ident];
+}
+
+void SymbolTableManger::set_array_dims(const std::string &ident,
+                                       const std::vector<int> &dims) {
+  get_back_table().array_dims_map[ident] = dims;
+}
+
 std::vector<FuncFParamAST>
 SymbolTableManger::get_func_fparams(const std::string &ident) {
   auto table = find_table(ident);
