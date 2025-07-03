@@ -40,6 +40,9 @@ private:
   void pop_stack_offset_manager();
   AddrManager &get_addr_manager();
   StackOffsetManager &get_stack_offset_manager();
+  int store_aggregate(const koopa_raw_value_t &value, int dest_offset);
+  void alloc_aggregate(const koopa_raw_value_t &value);
+  int get_elem_size(const koopa_raw_type_t &type);
 
   std::stringstream oss;
   koopa_raw_program_builder_t builder;

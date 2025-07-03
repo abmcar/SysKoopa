@@ -286,28 +286,37 @@ void CodeGen::Visit(const koopa_raw_load_t &load) {
   addr_manager.freeId(load);
 }
 
+int CodeGen::store_aggregate(const koopa_raw_value_t &value, int dest_offset) {
+  auto agg = value->kind.data.aggregate;
+  for (int i = 0; i < agg.elems.len; ++i) {
+    auto elem = reinterpret_cast<koopa_raw_value_t>(agg.elems.buffer[i]);
+    if (elem->kind.tag == KOOPA_RVT_INTEGER) {
+      oss << "  li t6, " << dest_offset << "\n";
+      oss << "  add t6, sp, t6\n";
+      oss << "  li t5, " << get_value(elem) << "\n";
+      oss << "  sw t5, 0(t6)\n";
+      dest_offset += 4;
+    } else if (elem->kind.tag == KOOPA_RVT_BINARY) {
+      auto bin_addr = get_addr_manager().getAddr(elem);
+      oss << "  li t6, " << dest_offset << "\n";
+      oss << "  add t6, sp, t6\n";
+      oss << "  sw " << bin_addr << ", 0(t6)\n";
+      get_addr_manager().freeReg(bin_addr);
+      get_addr_manager().freeId(elem);
+      dest_offset += 4;
+    } else if (elem->kind.tag == KOOPA_RVT_AGGREGATE) {
+      dest_offset = store_aggregate(elem, dest_offset);
+    } else {
+      assert(false);
+    }
+  }
+  return dest_offset;
+}
+
 void CodeGen::Visit(const koopa_raw_store_t &store) {
   if (store.value->kind.tag == KOOPA_RVT_AGGREGATE) {
     auto dest_offset = get_stack_offset_manager().getOffset(store.dest->name);
-    auto agg = store.value->kind.data.aggregate;
-    for (int i = 0; i < agg.elems.len; ++i) {
-      auto elem = reinterpret_cast<koopa_raw_value_t>(agg.elems.buffer[i]);
-      if (elem->kind.tag == KOOPA_RVT_INTEGER) {
-        oss << "  li t6, " << dest_offset + i * 4 << "\n";
-        oss << "  add t6, sp, t6\n";
-        oss << "  li t5, " << get_value(elem) << "\n";
-        oss << "  sw t5, 0(t6)\n";
-      } else if (elem->kind.tag == KOOPA_RVT_BINARY) {
-        auto bin_addr = get_addr_manager().getAddr(elem);
-        oss << "  li t6, " << dest_offset + i * 4 << "\n";
-        oss << "  add t6, sp, t6\n";
-        oss << "  sw " << bin_addr << ", 0(t6)\n";
-        get_addr_manager().freeReg(bin_addr);
-        get_addr_manager().freeId(elem);
-      } else {
-        assert(false);
-      }
-    }
+    store_aggregate(store.value, dest_offset);
     return;
   }
 
@@ -330,7 +339,7 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
         store.dest->kind.data.get_elem_ptr);
     oss << "  li t6, " << dest_offset << "\n";
     oss << "  add t6, sp, t6\n";
-    oss << "  lw t6, 0(t6)\n"; 
+    oss << "  lw t6, 0(t6)\n";
     dest_str = "0(t6)";
   } else {
     int dest_offset = get_stack_offset_manager().getOffset(dest_name);
@@ -399,6 +408,27 @@ void CodeGen::Visit(const koopa_raw_call_t &call) {
   }
 }
 
+void CodeGen::alloc_aggregate(const koopa_raw_value_t &value) {
+  auto agg = value->kind.data.aggregate;
+  auto len = value->ty->data.array.len;
+  for (int i = 0; i < len; ++i) {
+    if (i < agg.elems.len) {
+      auto elem = reinterpret_cast<koopa_raw_value_t>(agg.elems.buffer[i]);
+      if (elem->kind.tag == KOOPA_RVT_INTEGER) {
+        oss << "  .word " << get_value(elem) << "\n";
+      } else if (elem->kind.tag == KOOPA_RVT_ZERO_INIT) {
+        oss << "  .zero 4\n";
+      } else if (elem->kind.tag == KOOPA_RVT_AGGREGATE) {
+        alloc_aggregate(elem);
+      } else {
+        assert(false);
+      }
+    } else {
+      oss << "  .zero 4\n";
+    }
+  }
+}
+
 void CodeGen::Visit(const koopa_raw_global_alloc_t &global_alloc,
                     std::string var_name) {
   oss << "  .global " << get_label(var_name) << "\n";
@@ -407,29 +437,24 @@ void CodeGen::Visit(const koopa_raw_global_alloc_t &global_alloc,
     oss << "  .word " << get_value(global_alloc.init) << "\n";
   } else if (global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT) {
     if (global_alloc.init->ty->tag == KOOPA_RTT_ARRAY) {
-      oss << "  .zero "
-          << global_alloc.init->ty->data.array.len * 4
-          << "\n";
+      oss << "  .zero " << global_alloc.init->ty->data.array.len * 4 << "\n";
     } else {
       oss << "  .zero 4\n";
     }
   } else if (global_alloc.init->kind.tag == KOOPA_RVT_AGGREGATE) {
-    auto agg = global_alloc.init->kind.data.aggregate;
-    auto len = global_alloc.init->ty->data.array.len;
-    for (int i = 0; i < len; ++i) {
-      if (i < agg.elems.len) {
-        auto elem = reinterpret_cast<koopa_raw_value_t>(agg.elems.buffer[i]);
-        if (elem->kind.tag == KOOPA_RVT_INTEGER) {
-          oss << "  .word " << get_value(elem) << "\n";
-        } else if (elem->kind.tag == KOOPA_RVT_ZERO_INIT) {
-          oss << "  .zero 4\n";
-        } else {
-          assert(false);
-        }
-      } else {
-        oss << "  .zero 4\n";
-      }
-    }
+    alloc_aggregate(global_alloc.init);
+  } else {
+    assert(false);
+  }
+}
+
+int CodeGen::get_elem_size(const koopa_raw_type_t &type) {
+  if (type->tag == KOOPA_RTT_INT32) {
+    return 4;
+  } else if (type->tag == KOOPA_RTT_ARRAY) {
+    return type->data.array.len * get_elem_size(type->data.array.base);
+  } else if (type->tag == KOOPA_RTT_POINTER) {
+    return get_elem_size(type->data.pointer.base);
   } else {
     assert(false);
   }
@@ -443,7 +468,11 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
         << "\n";
     auto idx_addr = addr_manager.getAddr(get_elem_ptr.index);
     cmd_li(get_elem_ptr.index, idx_addr);
-    oss << "  li t6, " << 4 << "\n";
+
+    auto elem = get_elem_ptr.src->ty->data.pointer.base->data.array.base;
+    int elem_size = get_elem_size(elem);
+
+    oss << "  li t6, " << elem_size << "\n";
     oss << "  mul t6, " << idx_addr << ", t6\n";
     oss << "  add " << res_addr << ", " << res_addr << ", t6\n";
     oss << "  li t6, " << get_stack_offset_manager().getOffset(get_elem_ptr)
@@ -459,22 +488,25 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   auto &stack_offset_manager = get_stack_offset_manager();
   auto &addr_manager = get_addr_manager();
   std::string res_addr = addr_manager.getAddr(get_elem_ptr);
-  int array_offset = stack_offset_manager.getOffset(get_elem_ptr.src->name);
+  int array_offset = -1;
+  if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+    array_offset = stack_offset_manager.getOffset(
+        get_elem_ptr.src->kind.data.get_elem_ptr);
+  } else {
+    array_offset = stack_offset_manager.getOffset(get_elem_ptr.src->name);
+  }
   oss << "  li t6, " << array_offset << "\n";
   oss << "  add " << res_addr << ", sp, t6\n";
+  if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+    oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
+  }
 
   std::string idx_addr = addr_manager.getAddr(get_elem_ptr.index);
   cmd_li(get_elem_ptr.index, idx_addr);
 
-  auto elem = get_elem_ptr.src->ty->data.pointer.base;
-  auto elem_ty_tag = elem->tag;
-  int elem_size = 4;
-  while (elem_ty_tag == KOOPA_RTT_POINTER) {
-    auto array = elem->data.pointer.base->data.array;
-    elem_size = array.len * elem_size;
-    elem = array.base;
-    elem_ty_tag = elem->tag;
-  }
+  auto elem = get_elem_ptr.src->ty->data.pointer.base->data.array.base;
+  int elem_size = get_elem_size(elem);
+
   oss << "  li t6, " << elem_size << "\n";
   oss << "  mul t6, " << idx_addr << ", t6\n";
   oss << "  add " << res_addr << ", " << res_addr << ", t6\n";

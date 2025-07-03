@@ -1,5 +1,4 @@
 #include "stack_offset_manager.h"
-#include <queue>
 
 int StackOffsetManager::getNextId() { return ++id_counter; }
 
@@ -26,39 +25,22 @@ void StackOffsetManager::setOffset(const koopa_raw_value_t &value) {
         current_stack_offset;
     current_stack_offset += 4;
     break;
-  case KOOPA_RVT_ALLOC:
+  case KOOPA_RVT_ALLOC: {
     alloc_name_id_map[value->name] = getNextId();
     id_to_offset_map[alloc_name_id_map[value->name]] = current_stack_offset;
+    int now_size = 4;
     if (ty_tag == KOOPA_RTT_POINTER) {
       auto tmp = value->ty->data.pointer.base;
-      std::queue<const struct koopa_raw_type_kind *> q;
-      q.push(tmp);
-      while (!q.empty()) {
-        auto ty = q.front();
-        q.pop();
-        if (ty->tag == KOOPA_RTT_ARRAY) {
-          auto array = ty->data.array;
-          auto data_type = array.base->tag;
-          if (data_type == KOOPA_RTT_INT32) {
-            for (int i = 0; i < array.len; ++i) {
-              current_stack_offset += 4;
-            }
-          } else {
-            for (int i = 0; i < array.len; ++i) {
-              q.push(array.base->data.pointer.base);
-            }
-          }
-        } else {
-          id_to_offset_map[alloc_name_id_map[value->name]] =
-              current_stack_offset;
-          current_stack_offset += 4;
-        }
+      while (tmp->tag == KOOPA_RTT_ARRAY) {
+        now_size *= tmp->data.array.len;
+        tmp = tmp->data.array.base;
       }
+      current_stack_offset += now_size;
     } else {
       assert(false);
     }
     break;
-
+  }
   case KOOPA_RVT_FUNC_ARG_REF:
     func_arg_idx_id_map[value->kind.data.func_arg_ref.index] = getNextId();
     id_to_offset_map[func_arg_idx_id_map[value->kind.data.func_arg_ref.index]] =
