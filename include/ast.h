@@ -70,7 +70,7 @@ private:
 class BaseAST {
 public:
   virtual ~BaseAST() = default;
-  virtual void print(std::ostream &os){};
+  virtual void print(std::ostream &os) {};
   friend std::ostream &operator<<(std::ostream &os, BaseAST &ast);
 };
 
@@ -117,13 +117,14 @@ public:
   enum Kind { CONST_DEF, VAR_DEF, VAR_IDENT, VAR_ARRAY_DEF, VAR_ARRAY_IDENT };
   Kind kind;
   std::string ident;
-  void print(std::ostream &os) override{};
+  void print(std::ostream &os) override {};
 };
 
 class FuncFParamAST : public BaseAST {
 public:
   FuncFParamAST() : b_type(""), ident("") {}
-  FuncFParamAST(std::string b_type, std::string ident) : b_type(b_type), ident(ident) {}
+  FuncFParamAST(std::string b_type, std::string ident)
+      : b_type(b_type), ident(ident) {}
   std::string b_type;
   std::string ident;
   void print(std::ostream &os) override;
@@ -191,7 +192,8 @@ public:
   enum Kind { IDENT, ARRAY_ACCESS };
   Kind kind;
   std::string ident;
-  std::vector<std::unique_ptr<ExpAST>> *array_index_list = nullptr; // 多维数组下标
+  std::vector<std::unique_ptr<ExpAST>> *array_index_list =
+      nullptr; // 多维数组下标
   void print(std::ostream &os) override;
 };
 

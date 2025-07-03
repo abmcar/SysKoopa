@@ -492,7 +492,16 @@ void LValAST::print(std::ostream &os) {
       os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
       os << "  @" << ident << " = %" << reg << "\n";
     } else {
-      os << "  # TODO multi-dimensional array access\n";
+      auto last_ptr = "@" + ident;
+      for (int i = 0; i < array_index_list->size(); i++) {
+        auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
+        array_index_list->at(i)->print(os);
+        std::string idx = get_koopa_exp_reg(array_index_list->at(i).get());
+        os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
+           << "\n";
+        last_ptr = now_ptr;
+      }
+      os << "  @" << ident << " = " << last_ptr << "\n";
     }
   }
 }
@@ -528,7 +537,18 @@ void StmtAST::print(std::ostream &os) {
          << "\n";
     } else if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
                SymbolTable::DefType::VAR_ARRAY) {
-      os << "  # TODO multi-dimensional array assignment\n";
+      auto last_ptr = "@" + ident;
+      for (int i = 0; i < l_val->array_index_list->size(); i++) {
+        auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
+        l_val->array_index_list->at(i)->print(os);
+        std::string idx =
+            get_koopa_exp_reg(l_val->array_index_list->at(i).get());
+        os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
+           << "\n";
+        last_ptr = now_ptr;
+      }
+      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", " << last_ptr
+         << "\n";
     } else {
       os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", @" + ident
          << "\n";
@@ -641,7 +661,20 @@ void PrimaryExpAST::print(std::ostream &os) {
         os << "  %" << ptr << " = getelemptr @" + ident << ", " << idx << "\n";
         os << "  %" << reg << " = load %" << ptr << "\n";
       } else {
-        os << "  # TODO multi-dimensional array load\n";
+        std::string ident =
+            SymbolTableManger::getInstance().get_ident(l_val->ident);
+        reg = IRManager::getInstance().getNextReg();
+        auto last_ptr = "@" + ident;
+        for (int i = 0; i < l_val->array_index_list->size(); i++) {
+          auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
+          l_val->array_index_list->at(i)->print(os);
+          std::string idx =
+              get_koopa_exp_reg(l_val->array_index_list->at(i).get());
+          os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
+             << "\n";
+          last_ptr = now_ptr;
+        }
+        os << "  %" << reg << " = load " << last_ptr << "\n";
       }
     } else {
       if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
