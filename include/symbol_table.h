@@ -39,6 +39,7 @@ public:
   std::vector<int> get_const_array_val(const std::string &ident);
   std::vector<int> get_array_dims(const std::string &ident);
   void set_array_dims(const std::string &ident, const std::vector<int> &dims);
+  bool has_array_dims(const std::string &ident);
   std::vector<FuncFParamAST> get_func_fparams(const std::string &ident);
 
   void alloc_ident(const std::string &ident);
