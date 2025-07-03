@@ -178,7 +178,8 @@ void ConstInitValAST::print(std::ostream &os) {
 }
 
 // 计算数组总大小的辅助函数
-int calc_array_total_size(std::vector<std::unique_ptr<ExpAST>> *array_dims, int start_dim = 0) {
+int calc_array_total_size(std::vector<std::unique_ptr<ExpAST>> *array_dims,
+                          int start_dim = 0) {
   int total = 1;
   for (int i = start_dim; i < array_dims->size(); i++) {
     total *= array_dims->at(i)->calc_number();
@@ -187,11 +188,12 @@ int calc_array_total_size(std::vector<std::unique_ptr<ExpAST>> *array_dims, int 
 }
 
 // 生成多维数组类型字符串的辅助函数
-std::string generate_array_type(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
+std::string
+generate_array_type(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
   if (array_dims->empty()) {
     return "i32";
   }
-  
+
   std::string type = "i32";
   for (int i = array_dims->size() - 1; i >= 0; i--) {
     int dim_size = array_dims->at(i)->calc_number();
@@ -201,7 +203,8 @@ std::string generate_array_type(std::vector<std::unique_ptr<ExpAST>> *array_dims
 }
 
 // 计算各维度大小的辅助函数
-std::vector<int> calc_dims_size(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
+std::vector<int>
+calc_dims_size(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
   std::vector<int> dims;
   for (auto &dim : *array_dims) {
     dims.push_back(dim->calc_number());
@@ -210,8 +213,9 @@ std::vector<int> calc_dims_size(std::vector<std::unique_ptr<ExpAST>> *array_dims
 }
 
 // 输出嵌套数组结构的辅助函数
-void output_nested_array(std::ostream &os, const std::vector<int> &data, 
-                         const std::vector<int> &dims, int current_dim, int &index) {
+void output_nested_array(std::ostream &os, const std::vector<int> &data,
+                         const std::vector<int> &dims, int current_dim,
+                         int &index) {
   if (current_dim == dims.size() - 1) {
     // 最后一维，直接输出数据
     os << "{";
@@ -236,8 +240,9 @@ void output_nested_array(std::ostream &os, const std::vector<int> &data,
 }
 
 // 填充初始化列表，转换为已经填好0的形式
-void flatten_init_list(InitValAST *init_val, std::vector<int> &result, 
-                       const std::vector<int> &dims, int &pos, int current_dim = 0) {
+void flatten_init_list(InitValAST *init_val, std::vector<int> &result,
+                       const std::vector<int> &dims, int &pos,
+                       int current_dim = 0) {
   if (init_val->kind == InitValAST::Kind::EXP) {
     // 遇到整数，从最后一维开始填充数据
     if (pos < result.size()) {
@@ -248,9 +253,7 @@ void flatten_init_list(InitValAST *init_val, std::vector<int> &result,
     if (current_dim >= dims.size()) {
       return; // 维度越界
     }
-    
-    
-    
+
     // 对齐到边界：检查当前对齐到了哪一个边界
     int aligned_dim = current_dim;
     for (int dim = 0; dim <= current_dim; dim++) {
@@ -263,7 +266,7 @@ void flatten_init_list(InitValAST *init_val, std::vector<int> &result,
         break;
       }
     }
-    
+
     // 将当前初始化列表视作这个边界所对应的最长维度的数组的初始化列表
     // 递归处理列表中的每个元素
     if (init_val->list) {
@@ -281,12 +284,12 @@ void init_array_val(std::ostream &os, InitValAST *init_val,
     std::vector<int> dims = calc_dims_size(array_dims);
     int total_size = calc_array_total_size(array_dims);
     std::vector<int> flattened(total_size, 0); // 初始化为0
-    
+
     int pos = 0;
     if (init_val) {
       flatten_init_list(init_val, flattened, dims, pos, 0);
     }
-    
+
     // 递归输出多维数组结构
     int index = 0;
     output_nested_array(os, flattened, dims, 0, index);
@@ -294,8 +297,10 @@ void init_array_val(std::ostream &os, InitValAST *init_val,
 }
 
 // 填充常量初始化列表，转换为已经填好0的形式
-void flatten_const_init_list(ConstInitValAST *const_init_val, std::vector<int> &result, 
-                             const std::vector<int> &dims, int &pos, int current_dim = 0) {
+void flatten_const_init_list(ConstInitValAST *const_init_val,
+                             std::vector<int> &result,
+                             const std::vector<int> &dims, int &pos,
+                             int current_dim = 0) {
   if (const_init_val->kind == ConstInitValAST::Kind::EXP) {
     // 遇到整数，从最后一维开始填充数据
     if (pos < result.size()) {
@@ -306,7 +311,7 @@ void flatten_const_init_list(ConstInitValAST *const_init_val, std::vector<int> &
     if (current_dim >= dims.size()) {
       return; // 维度越界
     }
-    
+
     // 对齐到边界：检查当前对齐到了哪一个边界
     int aligned_dim = current_dim;
     for (int dim = 0; dim <= current_dim; dim++) {
@@ -319,7 +324,7 @@ void flatten_const_init_list(ConstInitValAST *const_init_val, std::vector<int> &
         break;
       }
     }
-    
+
     // 将当前初始化列表视作这个边界所对应的最长维度的数组的初始化列表
     // 递归处理列表中的每个元素
     if (const_init_val->list) {
@@ -331,7 +336,8 @@ void flatten_const_init_list(ConstInitValAST *const_init_val, std::vector<int> &
 }
 
 // 计算常量数组总大小的辅助函数
-int calc_const_array_total_size(const std::vector<int> &array_dims, int start_dim = 0) {
+int calc_const_array_total_size(const std::vector<int> &array_dims,
+                                int start_dim = 0) {
   int total = 1;
   for (int i = start_dim; i < array_dims.size(); i++) {
     total *= array_dims[i];
@@ -344,7 +350,7 @@ std::string generate_const_array_type(const std::vector<int> &array_dims) {
   if (array_dims.empty()) {
     return "i32";
   }
-  
+
   std::string type = "i32";
   for (int i = array_dims.size() - 1; i >= 0; i--) {
     int dim_size = array_dims[i];
@@ -359,12 +365,12 @@ void init_const_array_val(std::ostream &os, ConstInitValAST *const_init_val,
     // 首次调用，将初始化列表转换为已经填好0的平坦数组
     int total_size = calc_const_array_total_size(array_dims);
     std::vector<int> flattened(total_size, 0); // 初始化为0
-    
+
     int pos = 0;
     if (const_init_val) {
       flatten_const_init_list(const_init_val, flattened, array_dims, pos, 0);
     }
-    
+
     // 递归输出多维数组结构
     int index = 0;
     output_nested_array(os, flattened, array_dims, 0, index);
@@ -430,10 +436,11 @@ void ConstDefAST::print(std::ostream &os) {
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
   if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
-      SymbolTable::DefType::CONST_ARRAY && !array_dims.empty()) {
+          SymbolTable::DefType::CONST_ARRAY &&
+      !array_dims.empty()) {
     // 支持多维常量数组
     std::string array_type = generate_const_array_type(array_dims);
-    
+
     if (is_global) {
       os << "global @" << ident << " = alloc " << array_type << ", ";
       if (const_init_val_ast) {
