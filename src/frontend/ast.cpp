@@ -3,6 +3,9 @@
 #include "util.h"
 #include <string>
 
+std::string generate_fparam_array_type(
+    std::vector<std::unique_ptr<ExpAST>> *array_dims);
+
 std::ostream &operator<<(std::ostream &os, BaseAST &ast) {
   ast.print(os);
   return os;
@@ -87,7 +90,7 @@ void FuncDefAST::print(std::ostream &os) {
     for (int i = 0; i < n; i++) {
       os << "@" << func_fparams[i].ident << ": ";
       if (func_fparams[i].array_dims != nullptr) {
-        os << "*i32"; // TODO: support multi-dimensional arrays
+        os << generate_fparam_array_type(func_fparams[i].array_dims);
       } else if (func_fparams[i].b_type == "int") {
         os << "i32";
       } else {
@@ -124,8 +127,10 @@ void FuncDefAST::print(std::ostream &os) {
           .lval_ident_map[func_fparams[i].ident] =
           this->ident + "_" + func_fparams[i].ident;
       if (func_fparams[i].array_dims != nullptr) {
+        std::string param_type =
+            generate_fparam_array_type(func_fparams[i].array_dims);
         os << "  @" << this->ident << "_" << func_fparams[i].ident
-           << " = alloc *i32\n"; // TODO: real array param handling
+           << " = alloc " << param_type << "\n";
       } else {
         os << "  @" << this->ident << "_" << func_fparams[i].ident
            << " = alloc i32\n";
@@ -209,6 +214,17 @@ generate_array_type(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
     type = "[" + type + ", " + std::to_string(dim_size) + "]";
   }
   return type;
+}
+
+// Generate pointer type string for function array parameter
+std::string generate_fparam_array_type(
+    std::vector<std::unique_ptr<ExpAST>> *array_dims) {
+  std::string base = "i32";
+  for (int i = array_dims->size() - 1; i >= 0; --i) {
+    int dim = array_dims->at(i)->calc_number();
+    base = "[" + base + ", " + std::to_string(dim) + "]";
+  }
+  return "*" + base;
 }
 
 // 计算各维度大小的辅助函数
@@ -536,24 +552,30 @@ void StmtAST::print(std::ostream &os) {
     std::string ident =
         SymbolTableManger::getInstance().get_ident(l_val->ident);
     if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
-            SymbolTable::DefType::VAR_ARRAY &&
-        l_val->array_index_list->size() == 1) {
-      auto reg = IRManager::getInstance().getNextReg();
-      l_val->array_index_list->at(0)->print(os);
-      std::string idx = get_koopa_exp_reg(l_val->array_index_list->at(0).get());
-      os << "  %" << reg << " = getelemptr @" + ident << ", " << idx << "\n";
-      os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", %" << reg
-         << "\n";
-    } else if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
-               SymbolTable::DefType::VAR_ARRAY) {
-      auto last_ptr = "@" + ident;
+            SymbolTable::DefType::VAR_ARRAY) {
+      bool has_dims =
+          SymbolTableManger::getInstance().has_array_dims(l_val->ident);
+      std::string last_ptr;
+      int load_reg = -1;
+      if (has_dims) {
+        last_ptr = "@" + ident;
+      } else {
+        load_reg = IRManager::getInstance().getNextReg();
+        os << "  %" << load_reg << " = load @" << ident << "\n";
+        last_ptr = "%" + std::to_string(load_reg);
+      }
       for (int i = 0; i < l_val->array_index_list->size(); i++) {
         auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
         l_val->array_index_list->at(i)->print(os);
         std::string idx =
             get_koopa_exp_reg(l_val->array_index_list->at(i).get());
-        os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
-           << "\n";
+        if (i == 0 && !has_dims) {
+          os << "  " << now_ptr << " = getptr " << last_ptr << ", " << idx
+             << "\n";
+        } else {
+          os << "  " << now_ptr << " = getelemptr " << last_ptr << ", " << idx
+             << "\n";
+        }
         last_ptr = now_ptr;
       }
       os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", " << last_ptr
@@ -658,45 +680,59 @@ void PrimaryExpAST::print(std::ostream &os) {
     reg = exp->get_reg();
   } else if (kind == Kind::L_VAL) {
     auto l_val = this->l_val.get();
-    if (l_val->kind == LValAST::Kind::ARRAY_ACCESS) {
-      if (l_val->array_index_list->size() == 1) {
-        l_val->array_index_list->at(0)->print(os);
-        std::string idx =
-            get_koopa_exp_reg(l_val->array_index_list->at(0).get());
-        int ptr = IRManager::getInstance().getNextReg();
-        reg = IRManager::getInstance().getNextReg();
+      if (l_val->kind == LValAST::Kind::ARRAY_ACCESS) {
+        bool has_dims =
+            SymbolTableManger::getInstance().has_array_dims(l_val->ident);
         std::string ident =
             SymbolTableManger::getInstance().get_ident(l_val->ident);
-        os << "  %" << ptr << " = getelemptr @" + ident << ", " << idx << "\n";
-        os << "  %" << reg << " = load %" << ptr << "\n";
-      } else {
-        std::string ident =
-            SymbolTableManger::getInstance().get_ident(l_val->ident);
-        reg = IRManager::getInstance().getNextReg();
-        auto last_ptr = "@" + ident;
+        std::string last_ptr;
+        int load_reg = -1;
+        if (has_dims) {
+          last_ptr = "@" + ident;
+        } else {
+          load_reg = IRManager::getInstance().getNextReg();
+          os << "  %" << load_reg << " = load @" << ident << "\n";
+          last_ptr = "%" + std::to_string(load_reg);
+        }
         for (int i = 0; i < l_val->array_index_list->size(); i++) {
           auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
           l_val->array_index_list->at(i)->print(os);
           std::string idx =
               get_koopa_exp_reg(l_val->array_index_list->at(i).get());
-          os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
-             << "\n";
+          if (i == 0 && !has_dims) {
+            os << "  " << now_ptr << " = getptr " << last_ptr << ", " << idx
+               << "\n";
+          } else {
+            os << "  " << now_ptr << " = getelemptr " << last_ptr << ", " << idx
+               << "\n";
+          }
           last_ptr = now_ptr;
         }
-        os << "  %" << reg << " = load " << last_ptr << "\n";
-      }
-    } else {
-      if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
-          SymbolTable::DefType::CONST) {
-        number = SymbolTableManger::getInstance().get_val(l_val->ident);
-        kind = ExpAST::Kind::NUMBER;
-      } else {
         reg = IRManager::getInstance().getNextReg();
-        std::string ident =
-            SymbolTableManger::getInstance().get_ident(l_val->ident);
-        os << "  %" << reg << " = load @" + ident << "\n";
+        os << "  %" << reg << " = load " << last_ptr << "\n";
+      } else {
+        auto dtype =
+            SymbolTableManger::getInstance().get_def_type(l_val->ident);
+        if (dtype == SymbolTable::DefType::CONST) {
+          number = SymbolTableManger::getInstance().get_val(l_val->ident);
+          kind = ExpAST::Kind::NUMBER;
+        } else if (dtype == SymbolTable::DefType::VAR_ARRAY) {
+          std::string ident =
+              SymbolTableManger::getInstance().get_ident(l_val->ident);
+          if (SymbolTableManger::getInstance().has_array_dims(l_val->ident)) {
+            reg = IRManager::getInstance().getNextReg();
+            os << "  %" << reg << " = getelemptr @" << ident << ", 0\n";
+          } else {
+            reg = IRManager::getInstance().getNextReg();
+            os << "  %" << reg << " = load @" << ident << "\n";
+          }
+        } else {
+          reg = IRManager::getInstance().getNextReg();
+          std::string ident =
+              SymbolTableManger::getInstance().get_ident(l_val->ident);
+          os << "  %" << reg << " = load @" + ident << "\n";
+        }
       }
-    }
   }
 }
 
