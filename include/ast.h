@@ -140,7 +140,7 @@ class InitValAST : public BaseAST {
 public:
   enum Kind { EXP, LIST };
   Kind kind;
-  std::unique_ptr<ExpAST> exp;                                     // EXP
+  std::unique_ptr<ExpAST> exp;                              // EXP
   std::vector<std::unique_ptr<InitValAST>> *list = nullptr; // LIST
   void print(std::ostream &os) override;
 };

@@ -161,7 +161,9 @@ void InitValAST::print(std::ostream &os) {
   if (kind == Kind::EXP && exp) {
     exp->print(os);
   } else {
-    // TODO: handle list initialization for multi-dimensional array
+    for (auto &item : *list) {
+      item->print(os);
+    }
   }
 }
 
@@ -169,7 +171,125 @@ void ConstInitValAST::print(std::ostream &os) {
   if (kind == Kind::EXP && exp) {
     exp->print(os);
   } else {
-    // TODO: handle const list initialization for multi-dimensional array
+    for (auto &item : *list) {
+      item->print(os);
+    }
+  }
+}
+
+// 计算数组总大小的辅助函数
+int calc_array_total_size(std::vector<std::unique_ptr<ExpAST>> *array_dims, int start_dim = 0) {
+  int total = 1;
+  for (int i = start_dim; i < array_dims->size(); i++) {
+    total *= array_dims->at(i)->calc_number();
+  }
+  return total;
+}
+
+// 生成多维数组类型字符串的辅助函数
+std::string generate_array_type(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
+  if (array_dims->empty()) {
+    return "i32";
+  }
+  
+  std::string type = "i32";
+  for (int i = array_dims->size() - 1; i >= 0; i--) {
+    int dim_size = array_dims->at(i)->calc_number();
+    type = "[" + type + ", " + std::to_string(dim_size) + "]";
+  }
+  return type;
+}
+
+// 计算各维度大小的辅助函数
+std::vector<int> calc_dims_size(std::vector<std::unique_ptr<ExpAST>> *array_dims) {
+  std::vector<int> dims;
+  for (auto &dim : *array_dims) {
+    dims.push_back(dim->calc_number());
+  }
+  return dims;
+}
+
+// 输出嵌套数组结构的辅助函数
+void output_nested_array(std::ostream &os, const std::vector<int> &data, 
+                         const std::vector<int> &dims, int current_dim, int &index) {
+  if (current_dim == dims.size() - 1) {
+    // 最后一维，直接输出数据
+    os << "{";
+    for (int i = 0; i < dims[current_dim]; i++) {
+      os << data[index++];
+      if (i != dims[current_dim] - 1) {
+        os << ", ";
+      }
+    }
+    os << "}";
+  } else {
+    // 中间维度，递归输出
+    os << "{";
+    for (int i = 0; i < dims[current_dim]; i++) {
+      output_nested_array(os, data, dims, current_dim + 1, index);
+      if (i != dims[current_dim] - 1) {
+        os << ", ";
+      }
+    }
+    os << "}";
+  }
+}
+
+// 填充初始化列表，转换为已经填好0的形式
+void flatten_init_list(InitValAST *init_val, std::vector<int> &result, 
+                       const std::vector<int> &dims, int &pos, int current_dim = 0) {
+  if (init_val->kind == InitValAST::Kind::EXP) {
+    // 遇到整数，从最后一维开始填充数据
+    if (pos < result.size()) {
+      result[pos++] = init_val->exp->calc_number();
+    }
+  } else if (init_val->kind == InitValAST::Kind::LIST) {
+    // 遇到初始化列表时
+    if (current_dim >= dims.size()) {
+      return; // 维度越界
+    }
+    
+    
+    
+    // 对齐到边界：检查当前对齐到了哪一个边界
+    int aligned_dim = current_dim;
+    for (int dim = 0; dim <= current_dim; dim++) {
+      int dim_boundary = 1;
+      for (int i = dim; i < dims.size(); i++) {
+        dim_boundary *= dims[i];
+      }
+      if (pos % dim_boundary == 0) {
+        aligned_dim = dim;
+        break;
+      }
+    }
+    
+    // 将当前初始化列表视作这个边界所对应的最长维度的数组的初始化列表
+    // 递归处理列表中的每个元素
+    if (init_val->list) {
+      for (auto &item : *init_val->list) {
+        flatten_init_list(item.get(), result, dims, pos, aligned_dim + 1);
+      }
+    }
+  }
+}
+
+void init_array_val(std::ostream &os, InitValAST *init_val,
+                    std::vector<std::unique_ptr<ExpAST>> *array_dims, int dim) {
+  if (dim == 0) {
+    // 首次调用，将初始化列表转换为已经填好0的平坦数组
+    std::vector<int> dims = calc_dims_size(array_dims);
+    int total_size = calc_array_total_size(array_dims);
+    std::vector<int> flattened(total_size, 0); // 初始化为0
+    
+    int pos = 0;
+    if (init_val) {
+      flatten_init_list(init_val, flattened, dims, pos, 0);
+    }
+    
+    // 递归输出多维数组结构
+    int index = 0;
+    output_nested_array(os, flattened, dims, 0, index);
   }
 }
 
@@ -179,9 +299,6 @@ void VarDefAST::print(std::ostream &os) {
                           .lval_ident_map[this->ident];
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
-  int first_dim =
-      (array_dims && !array_dims->empty()) ? array_dims->at(0)->calc_number() : 0;
-
   if (is_global) {
     if (kind == DefAST::Kind::VAR_IDENT) {
       os << "global @" + ident << " = alloc i32, zeroinit\n";
@@ -190,15 +307,16 @@ void VarDefAST::print(std::ostream &os) {
         init_val->print(os);
       os << "global @" + ident << " = alloc i32, "
          << get_koopa_exp_reg(init_val ? init_val->exp.get() : nullptr) << "\n";
-    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT && array_dims->size() == 1) {
-      os << "global @" + ident << " = alloc [i32, " << first_dim
-         << "], zeroinit\n";
-    } else if (kind == DefAST::Kind::VAR_ARRAY_DEF && array_dims->size() == 1) {
-      os << "global @" + ident << " = alloc [i32, " << first_dim << "], {";
-      // TODO multi-dimensional array init
-      os << "}\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_IDENT) {
+      std::string array_type = generate_array_type(array_dims);
+      os << "global @" + ident << " = alloc " << array_type << ", zeroinit\n";
+    } else if (kind == DefAST::Kind::VAR_ARRAY_DEF) {
+      std::string array_type = generate_array_type(array_dims);
+      os << "global @" + ident << " = alloc " << array_type << ", ";
+      init_array_val(os, init_val.get(), array_dims, 0);
+      os << "\n";
     } else {
-      os << "  # TODO multi-dimensional global array\n";
+      assert(false);
     }
     SymbolTableManger::getInstance().alloc_ident(this->ident);
     return;
@@ -206,20 +324,22 @@ void VarDefAST::print(std::ostream &os) {
     if (kind == DefAST::Kind::VAR_IDENT || kind == DefAST::Kind::VAR_DEF) {
       os << "  @" + ident << " = alloc i32\n";
     } else if ((kind == DefAST::Kind::VAR_ARRAY_IDENT ||
-                kind == DefAST::Kind::VAR_ARRAY_DEF) &&
-               array_dims->size() == 1) {
-      os << "  @" + ident << " = alloc [i32, " << first_dim << "]\n";
-      os << "  store {";
-      // TODO init for multi-dim
-      os << "}, @" + ident << "\n";
+                kind == DefAST::Kind::VAR_ARRAY_DEF)) {
+      std::string array_type = generate_array_type(array_dims);
+      os << "  @" + ident << " = alloc " << array_type << "\n";
+      if (kind == DefAST::Kind::VAR_ARRAY_DEF && init_val) {
+        os << "  store ";
+        init_array_val(os, init_val.get(), array_dims, 0);
+        os << ", @" + ident << "\n";
+      }
     } else {
-      os << "  # TODO multi-dimensional local array\n";
+      assert(false);
     }
   }
 
   if (kind == DefAST::Kind::VAR_DEF && init_val) {
     init_val->print(os);
-    os << "  store " << get_koopa_exp_reg(init_val ? init_val->exp.get() : nullptr) << ", @" + ident
+    os << "  store " << get_koopa_exp_reg(init_val->exp.get()) << ", @" + ident
        << "\n";
   }
 
@@ -232,8 +352,8 @@ void ConstDefAST::print(std::ostream &os) {
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
   if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
-      SymbolTable::DefType::CONST_ARRAY && !array_dims.empty() &&
-      array_dims.size() == 1) {
+          SymbolTable::DefType::CONST_ARRAY &&
+      !array_dims.empty() && array_dims.size() == 1) {
     auto vec =
         SymbolTableManger::getInstance().get_const_array_val(this->ident);
     int size = array_dims[0];
@@ -326,7 +446,7 @@ void StmtAST::print(std::ostream &os) {
     std::string ident =
         SymbolTableManger::getInstance().get_ident(l_val->ident);
     if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
-        SymbolTable::DefType::VAR_ARRAY &&
+            SymbolTable::DefType::VAR_ARRAY &&
         l_val->array_index_list->size() == 1) {
       auto reg = IRManager::getInstance().getNextReg();
       l_val->array_index_list->at(0)->print(os);
