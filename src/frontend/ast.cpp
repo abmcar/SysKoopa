@@ -293,6 +293,84 @@ void init_array_val(std::ostream &os, InitValAST *init_val,
   }
 }
 
+// 填充常量初始化列表，转换为已经填好0的形式
+void flatten_const_init_list(ConstInitValAST *const_init_val, std::vector<int> &result, 
+                             const std::vector<int> &dims, int &pos, int current_dim = 0) {
+  if (const_init_val->kind == ConstInitValAST::Kind::EXP) {
+    // 遇到整数，从最后一维开始填充数据
+    if (pos < result.size()) {
+      result[pos++] = const_init_val->exp->calc_number();
+    }
+  } else if (const_init_val->kind == ConstInitValAST::Kind::LIST) {
+    // 遇到初始化列表时
+    if (current_dim >= dims.size()) {
+      return; // 维度越界
+    }
+    
+    // 对齐到边界：检查当前对齐到了哪一个边界
+    int aligned_dim = current_dim;
+    for (int dim = 0; dim <= current_dim; dim++) {
+      int dim_boundary = 1;
+      for (int i = dim; i < dims.size(); i++) {
+        dim_boundary *= dims[i];
+      }
+      if (pos % dim_boundary == 0) {
+        aligned_dim = dim;
+        break;
+      }
+    }
+    
+    // 将当前初始化列表视作这个边界所对应的最长维度的数组的初始化列表
+    // 递归处理列表中的每个元素
+    if (const_init_val->list) {
+      for (auto &item : *const_init_val->list) {
+        flatten_const_init_list(item.get(), result, dims, pos, aligned_dim + 1);
+      }
+    }
+  }
+}
+
+// 计算常量数组总大小的辅助函数
+int calc_const_array_total_size(const std::vector<int> &array_dims, int start_dim = 0) {
+  int total = 1;
+  for (int i = start_dim; i < array_dims.size(); i++) {
+    total *= array_dims[i];
+  }
+  return total;
+}
+
+// 生成常量多维数组类型字符串的辅助函数
+std::string generate_const_array_type(const std::vector<int> &array_dims) {
+  if (array_dims.empty()) {
+    return "i32";
+  }
+  
+  std::string type = "i32";
+  for (int i = array_dims.size() - 1; i >= 0; i--) {
+    int dim_size = array_dims[i];
+    type = "[" + type + ", " + std::to_string(dim_size) + "]";
+  }
+  return type;
+}
+
+void init_const_array_val(std::ostream &os, ConstInitValAST *const_init_val,
+                          const std::vector<int> &array_dims, int dim) {
+  if (dim == 0) {
+    // 首次调用，将初始化列表转换为已经填好0的平坦数组
+    int total_size = calc_const_array_total_size(array_dims);
+    std::vector<int> flattened(total_size, 0); // 初始化为0
+    
+    int pos = 0;
+    if (const_init_val) {
+      flatten_const_init_list(const_init_val, flattened, array_dims, pos, 0);
+    }
+    
+    // 递归输出多维数组结构
+    int index = 0;
+    output_nested_array(os, flattened, array_dims, 0, index);
+  }
+}
+
 void VarDefAST::print(std::ostream &os) {
   std::string ident = SymbolTableManger::getInstance()
                           .get_back_table()
@@ -352,42 +430,29 @@ void ConstDefAST::print(std::ostream &os) {
   bool is_global = SymbolTableManger::getInstance().is_global_table();
 
   if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
-          SymbolTable::DefType::CONST_ARRAY &&
-      !array_dims.empty() && array_dims.size() == 1) {
-    auto vec =
-        SymbolTableManger::getInstance().get_const_array_val(this->ident);
-    int size = array_dims[0];
+      SymbolTable::DefType::CONST_ARRAY && !array_dims.empty()) {
+    // 支持多维常量数组
+    std::string array_type = generate_const_array_type(array_dims);
+    
     if (is_global) {
-      os << "global @" << ident << " = alloc [i32, " << size << "], {";
-      for (int i = 0; i < size; i++) {
-        if (i < vec.size()) {
-          os << vec[i];
-        } else {
-          os << "0";
-        }
-        if (i != size - 1) {
-          os << ", ";
-        }
+      os << "global @" << ident << " = alloc " << array_type << ", ";
+      if (const_init_val_ast) {
+        init_const_array_val(os, const_init_val_ast.get(), array_dims, 0);
+      } else {
+        os << "zeroinit";
       }
-      os << "}\n";
+      os << "\n";
     } else {
-      os << "  @" << ident << " = alloc [i32, " << size << "]\n";
-      os << "  store {";
-      for (int i = 0; i < size; i++) {
-        if (i < vec.size()) {
-          os << vec[i];
-        } else {
-          os << "0";
-        }
-        if (i != size - 1) {
-          os << ", ";
-        }
+      os << "  @" << ident << " = alloc " << array_type << "\n";
+      if (const_init_val_ast) {
+        os << "  store ";
+        init_const_array_val(os, const_init_val_ast.get(), array_dims, 0);
+        os << ", @" << ident << "\n";
       }
-      os << "}, @" << ident << "\n";
     }
   } else if (SymbolTableManger::getInstance().get_def_type(this->ident) ==
              SymbolTable::DefType::CONST) {
-    // TODO multi-dimensional const array
+    // 普通常量处理保持不变
   }
 }
 
