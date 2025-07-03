@@ -122,11 +122,14 @@ public:
 
 class FuncFParamAST : public BaseAST {
 public:
-  FuncFParamAST() : b_type(""), ident("") {}
-  FuncFParamAST(std::string b_type, std::string ident)
-      : b_type(b_type), ident(ident) {}
+  FuncFParamAST()
+      : b_type(""), ident(""), array_dims(nullptr) {}
+  FuncFParamAST(std::string b_type, std::string ident,
+                std::vector<std::unique_ptr<ExpAST>> *array_dims = nullptr)
+      : b_type(b_type), ident(ident), array_dims(array_dims) {}
   std::string b_type;
   std::string ident;
+  std::vector<std::unique_ptr<ExpAST>> *array_dims;
   void print(std::ostream &os) override;
 };
 
