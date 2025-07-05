@@ -114,14 +114,22 @@ void FuncDefAST::print(std::ostream &os) {
     auto func_fparams =
         SymbolTableManger::getInstance().get_func_fparams(this->ident);
     int n = func_fparams.size();
-    for (int i = 0; i < n; i++) {
-      SymbolTableManger::getInstance().alloc_ident(func_fparams[i].ident);
-      SymbolTableManger::getInstance()
-          .get_back_table()
-          .def_type_map[func_fparams[i].ident] =
-          func_fparams[i].array_dims != nullptr
-              ? SymbolTable::DefType::VAR_ARRAY
-              : SymbolTable::DefType::VAR_IDENT;
+      for (int i = 0; i < n; i++) {
+        SymbolTableManger::getInstance().alloc_ident(func_fparams[i].ident);
+        SymbolTableManger::getInstance().set_func_param(func_fparams[i].ident);
+        auto &table = SymbolTableManger::getInstance().get_back_table();
+        table.def_type_map[func_fparams[i].ident] =
+            func_fparams[i].array_dims != nullptr
+                ? SymbolTable::DefType::VAR_ARRAY
+                : SymbolTable::DefType::VAR_IDENT;
+        if (func_fparams[i].array_dims != nullptr) {
+          std::vector<int> dims;
+          for (auto &d : *func_fparams[i].array_dims) {
+            dims.push_back(d->calc_number());
+          }
+          SymbolTableManger::getInstance().set_array_dims(
+              func_fparams[i].ident, dims);
+        }
       SymbolTableManger::getInstance()
           .get_back_table()
           .lval_ident_map[func_fparams[i].ident] =
@@ -518,15 +526,17 @@ void LValAST::print(std::ostream &os) {
       os << "  @" << ident << " = %" << reg << "\n";
     } else {
       auto last_ptr = "@" + ident;
+      int last_reg = -1;
       for (int i = 0; i < array_index_list->size(); i++) {
-        auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
+        int now_reg = IRManager::getInstance().getNextReg();
         array_index_list->at(i)->print(os);
         std::string idx = get_koopa_exp_reg(array_index_list->at(i).get());
-        os << "  " << now_ptr << " = getelemptr " + last_ptr << ", " << idx
+        os << "  %" << now_reg << " = getelemptr " + last_ptr << ", " << idx
            << "\n";
-        last_ptr = now_ptr;
+        last_ptr = "%" + std::to_string(now_reg);
+        last_reg = now_reg;
       }
-      os << "  @" << ident << " = " << last_ptr << "\n";
+      os << "  @" << ident << " = %" << last_reg << "\n";
     }
   }
 }
@@ -554,30 +564,33 @@ void StmtAST::print(std::ostream &os) {
     if (SymbolTableManger::getInstance().get_def_type(l_val->ident) ==
             SymbolTable::DefType::VAR_ARRAY) {
       bool has_dims =
-          SymbolTableManger::getInstance().has_array_dims(l_val->ident);
+          SymbolTableManger::getInstance().has_array_dims(l_val->ident) &&
+          !SymbolTableManger::getInstance().get_array_dims(l_val->ident).empty();
+      bool is_param =
+          SymbolTableManger::getInstance().is_func_param(l_val->ident);
       std::string last_ptr;
       int load_reg = -1;
-      if (has_dims) {
+      if (has_dims && !is_param) {
         last_ptr = "@" + ident;
       } else {
         load_reg = IRManager::getInstance().getNextReg();
         os << "  %" << load_reg << " = load @" << ident << "\n";
         last_ptr = "%" + std::to_string(load_reg);
       }
-      for (int i = 0; i < l_val->array_index_list->size(); i++) {
-        auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
-        l_val->array_index_list->at(i)->print(os);
-        std::string idx =
-            get_koopa_exp_reg(l_val->array_index_list->at(i).get());
-        if (i == 0 && !has_dims) {
-          os << "  " << now_ptr << " = getptr " << last_ptr << ", " << idx
-             << "\n";
-        } else {
-          os << "  " << now_ptr << " = getelemptr " << last_ptr << ", " << idx
-             << "\n";
+        for (int i = 0; i < l_val->array_index_list->size(); i++) {
+          int now_reg = IRManager::getInstance().getNextReg();
+          l_val->array_index_list->at(i)->print(os);
+          std::string idx =
+              get_koopa_exp_reg(l_val->array_index_list->at(i).get());
+          if (i == 0 && (!has_dims || is_param)) {
+            os << "  %" << now_reg << " = getptr " << last_ptr << ", " << idx
+               << "\n";
+          } else {
+            os << "  %" << now_reg << " = getelemptr " << last_ptr << ", " << idx
+               << "\n";
+          }
+          last_ptr = "%" + std::to_string(now_reg);
         }
-        last_ptr = now_ptr;
-      }
       os << "  store " << get_koopa_exp_reg(r_exp.get()) << ", " << last_ptr
          << "\n";
     } else {
@@ -682,34 +695,49 @@ void PrimaryExpAST::print(std::ostream &os) {
     auto l_val = this->l_val.get();
       if (l_val->kind == LValAST::Kind::ARRAY_ACCESS) {
         bool has_dims =
-            SymbolTableManger::getInstance().has_array_dims(l_val->ident);
+            SymbolTableManger::getInstance().has_array_dims(l_val->ident) &&
+            !SymbolTableManger::getInstance().get_array_dims(l_val->ident).empty();
         std::string ident =
             SymbolTableManger::getInstance().get_ident(l_val->ident);
         std::string last_ptr;
         int load_reg = -1;
-        if (has_dims) {
+        bool is_param =
+            SymbolTableManger::getInstance().is_func_param(l_val->ident);
+        if (has_dims && !is_param) {
           last_ptr = "@" + ident;
         } else {
           load_reg = IRManager::getInstance().getNextReg();
           os << "  %" << load_reg << " = load @" << ident << "\n";
           last_ptr = "%" + std::to_string(load_reg);
         }
+        int last_reg = -1;
         for (int i = 0; i < l_val->array_index_list->size(); i++) {
-          auto now_ptr = "%" + ident + "ptr" + std::to_string(i);
+          int now_reg = IRManager::getInstance().getNextReg();
           l_val->array_index_list->at(i)->print(os);
-          std::string idx =
-              get_koopa_exp_reg(l_val->array_index_list->at(i).get());
-          if (i == 0 && !has_dims) {
-            os << "  " << now_ptr << " = getptr " << last_ptr << ", " << idx
-               << "\n";
+          std::string idx = get_koopa_exp_reg(l_val->array_index_list->at(i).get());
+          if (i == 0 && (!has_dims || is_param)) {
+            os << "  %" << now_reg << " = getptr " << last_ptr << ", " << idx << "\n";
           } else {
-            os << "  " << now_ptr << " = getelemptr " << last_ptr << ", " << idx
-               << "\n";
+            os << "  %" << now_reg << " = getelemptr " << last_ptr << ", " << idx << "\n";
           }
-          last_ptr = now_ptr;
+          last_ptr = "%" + std::to_string(now_reg);
+          last_reg = now_reg;
         }
-        reg = IRManager::getInstance().getNextReg();
-        os << "  %" << reg << " = load " << last_ptr << "\n";
+        if (IRManager::getInstance().need_addr) {
+          int addr_reg = last_reg;
+          if (addr_reg == -1) {
+            addr_reg = IRManager::getInstance().getNextReg();
+            os << "  %" << addr_reg << " = getelemptr " << last_ptr << ", 0\n";
+          } else {
+            int tmp = IRManager::getInstance().getNextReg();
+            os << "  %" << tmp << " = getelemptr " << last_ptr << ", 0\n";
+            addr_reg = tmp;
+          }
+          reg = addr_reg;
+        } else {
+          reg = IRManager::getInstance().getNextReg();
+          os << "  %" << reg << " = load " << last_ptr << "\n";
+        }
       } else {
         auto dtype =
             SymbolTableManger::getInstance().get_def_type(l_val->ident);
@@ -719,11 +747,17 @@ void PrimaryExpAST::print(std::ostream &os) {
         } else if (dtype == SymbolTable::DefType::VAR_ARRAY) {
           std::string ident =
               SymbolTableManger::getInstance().get_ident(l_val->ident);
-          if (SymbolTableManger::getInstance().has_array_dims(l_val->ident)) {
-            reg = IRManager::getInstance().getNextReg();
+          bool has_dims =
+              SymbolTableManger::getInstance().has_array_dims(l_val->ident) &&
+              !SymbolTableManger::getInstance()
+                   .get_array_dims(l_val->ident)
+                   .empty();
+          bool is_param =
+              SymbolTableManger::getInstance().is_func_param(l_val->ident);
+          reg = IRManager::getInstance().getNextReg();
+          if (has_dims && !is_param) {
             os << "  %" << reg << " = getelemptr @" << ident << ", 0\n";
           } else {
-            reg = IRManager::getInstance().getNextReg();
             os << "  %" << reg << " = load @" << ident << "\n";
           }
         } else {
@@ -775,8 +809,18 @@ void UnaryExpAST::print(std::ostream &os) {
       exit(1);
     }
     std::vector<std::string> reg_list;
-    for (auto &item : *func_rparam_list) {
-      item->print(os);
+    for (int i = 0; i < func_rparam_list->size(); ++i) {
+      auto &item = func_rparam_list->at(i);
+      bool expect_ptr = func_fparams[i].array_dims != nullptr ||
+                        (!func_fparams[i].b_type.empty() &&
+                         func_fparams[i].b_type[0] == '*');
+      if (expect_ptr) {
+        IRManager::getInstance().need_addr = true;
+        item->print(os);
+        IRManager::getInstance().need_addr = false;
+      } else {
+        item->print(os);
+      }
       reg_list.push_back(get_koopa_exp_reg(item.get()));
     }
     auto DType = SymbolTableManger::getInstance().get_def_type(ident);

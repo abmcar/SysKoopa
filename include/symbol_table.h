@@ -23,6 +23,7 @@ public:
 
   std::map<std::string, bool> is_func_has_fparams_map;
   std::map<std::string, std::vector<FuncFParamAST> > func_fparams_map;
+  std::map<std::string, bool> is_func_param_map;
 
   std::string get_var_ident(const std::string ident);
   bool is_var_defined( const std::string &ident);
@@ -54,6 +55,8 @@ public:
   bool is_var_defined(const std::string &ident);
   bool is_func_has_fparams(const std::string &ident);
   bool is_global_table();
+  bool is_func_param(const std::string &ident);
+  void set_func_param(const std::string &ident);
   
 
   SymbolTable &get_stmt_table(BaseAST *stmt);

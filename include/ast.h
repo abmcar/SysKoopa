@@ -57,6 +57,7 @@ public:
   bool is_in_if = false;
   bool is_in_if_else = false;
   bool is_in_while = false;
+  bool need_addr = false;
 
 private:
   IRManager()
