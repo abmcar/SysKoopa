@@ -163,37 +163,59 @@ FuncFParamDimList
 
 // FuncDef ::= FuncType IDENT '(' [FuncFParamList] ')' Block;
 FuncDef
-  : Type IDENT '(' ')' Block {
-    auto ast = new FuncDefAST();
-    ast->func_type = *unique_ptr<string>($1);
-    ast->ident= *unique_ptr<string>($2);
-    ast->func_fparam_list = nullptr;
-    ast->block = unique_ptr<BaseAST>($5);
-    $$ = ast;
-    SymbolTableManger::getInstance().alloc_ident(ast->ident);
-    SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, false);
-    if (ast->func_type == "void") {
-      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
-    } else {
-      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+  : Type IDENT '(' ')' {
+      SymbolTableManger::getInstance().push_symbol_table();
+    } Block {
+      auto ast = new FuncDefAST();
+      ast->func_type = *unique_ptr<string>($1);
+      ast->ident = *unique_ptr<string>($2);
+      ast->func_fparam_list = nullptr;
+      ast->block = unique_ptr<BaseAST>($6);
+      $$ = ast;
+      SymbolTableManger::getInstance().pop_symbol_table();
+      SymbolTableManger::getInstance().alloc_ident(ast->ident);
+      SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, false);
+      if (ast->func_type == "void") {
+        SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
+      } else {
+        SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+      }
     }
-  }
-  | Type IDENT '(' FuncFParamList ')' Block {
-    auto ast = new FuncDefAST();
-    ast->func_type = *unique_ptr<string>($1);
-    ast->ident = *unique_ptr<string>($2);
-    ast->func_fparam_list = $4;
-    ast->block = unique_ptr<BaseAST>($6);
-    $$ = ast;
-    SymbolTableManger::getInstance().alloc_ident(ast->ident);
-    SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, true);
-    SymbolTableManger::getInstance().alloc_func_fparams(ast->ident, *$4);
-    if (ast->func_type == "void") {
-      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
-    } else {
-      SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+  | Type IDENT '(' FuncFParamList ')' {
+      SymbolTableManger::getInstance().push_symbol_table();
+      for (auto &param : *$4) {
+        SymbolTableManger::getInstance().alloc_ident(param.ident);
+        SymbolTableManger::getInstance().get_back_table().lval_ident_map[param.ident] =
+            std::string(*$2) + "_" + param.ident;
+        SymbolTableManger::getInstance().set_func_param(param.ident);
+        if (param.array_dims != nullptr) {
+          std::vector<int> dims;
+          for (auto &d : *param.array_dims) {
+            dims.push_back(d->calc_number());
+          }
+          SymbolTableManger::getInstance().set_array_dims(param.ident, dims);
+          SymbolTableManger::getInstance().get_back_table().def_type_map[param.ident] = SymbolTable::DefType::VAR_ARRAY;
+        } else {
+          SymbolTableManger::getInstance().get_back_table().def_type_map[param.ident] = SymbolTable::DefType::VAR_IDENT;
+        }
+      }
+    } Block {
+      auto ast = new FuncDefAST();
+      ast->func_type = *unique_ptr<string>($1);
+      ast->ident = *unique_ptr<string>($2);
+      ast->func_fparam_list = $4;
+      ast->block = unique_ptr<BaseAST>($7);
+      $$ = ast;
+      SymbolTableManger::getInstance().pop_symbol_table();
+      SymbolTableManger::getInstance().alloc_ident(ast->ident);
+      SymbolTableManger::getInstance().alloc_func_has_fparams(ast->ident, true);
+      SymbolTableManger::getInstance().alloc_func_fparams(ast->ident, *$4);
+      if (ast->func_type == "void") {
+        SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_VOID;
+      } else {
+        SymbolTableManger::getInstance().get_back_table().def_type_map[ast->ident] = SymbolTable::DefType::FUNC_INT;
+      }
     }
-  }
   ;
 
 // FuncType ::= "void" | "int";

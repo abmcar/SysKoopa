@@ -134,6 +134,17 @@ bool SymbolTableManger::is_global_table() {
   return symbol_table_stack.size() == 1;
 }
 
+bool SymbolTableManger::is_func_param(const std::string &ident) {
+  auto table = find_table(ident);
+  if (!table)
+    return false;
+  return table->is_func_param_map[ident];
+}
+
+void SymbolTableManger::set_func_param(const std::string &ident) {
+  get_back_table().is_func_param_map[ident] = true;
+}
+
 void SymbolTableManger::alloc_func_has_fparams(const std::string &ident,
                                                bool is_func_has_fparams) {
   get_back_table().is_func_has_fparams_map[ident] = is_func_has_fparams;
