@@ -146,6 +146,10 @@ void CodeGen::Visit(const koopa_raw_value_t &value) {
     // 访问 get_elem_ptr 指令
     Visit(kind.data.get_elem_ptr);
     break;
+  case KOOPA_RVT_GET_PTR:
+    // 访问 get_ptr 指令
+    Visit(kind.data.get_ptr);
+    break;
   default:
     // 其他类型暂时遇不到
     std::cerr << "Unknown instruction: " << kind.tag << std::endl;
@@ -273,6 +277,12 @@ void CodeGen::Visit(const koopa_raw_load_t &load) {
     oss << "  add t6, sp, t6\n";
     oss << "  lw " << res_addr << ", 0(t6)\n";
     oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
+  } else if (load.src->kind.tag == KOOPA_RVT_GET_PTR) {
+    int src_offset = stack_offset_manager.getOffset(load.src);
+    oss << "  li t6, " << src_offset << "\n";
+    oss << "  add t6, sp, t6\n";
+    oss << "  lw " << res_addr << ", 0(t6)\n";
+    oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
   } else {
     int src_offset = stack_offset_manager.getOffset(load.src->name);
     oss << "  li t6, " << src_offset << "\n";
@@ -297,11 +307,6 @@ int CodeGen::store_aggregate(const koopa_raw_value_t &value, int dest_offset) {
       oss << "  sw t5, 0(t6)\n";
       dest_offset += 4;
     } else if (elem->kind.tag == KOOPA_RVT_BINARY) {
-      auto bin_addr = get_addr_manager().getAddr(elem);
-      oss << "  li t6, " << dest_offset << "\n";
-      oss << "  add t6, sp, t6\n";
-      oss << "  sw " << bin_addr << ", 0(t6)\n";
-      get_addr_manager().freeReg(bin_addr);
       get_addr_manager().freeId(elem);
       dest_offset += 4;
     } else if (elem->kind.tag == KOOPA_RVT_AGGREGATE) {
@@ -337,6 +342,12 @@ void CodeGen::Visit(const koopa_raw_store_t &store) {
   } else if (store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
     int dest_offset = get_stack_offset_manager().getOffset(
         store.dest->kind.data.get_elem_ptr);
+    oss << "  li t6, " << dest_offset << "\n";
+    oss << "  add t6, sp, t6\n";
+    oss << "  lw t6, 0(t6)\n";
+    dest_str = "0(t6)";
+  } else if (store.dest->kind.tag == KOOPA_RVT_GET_PTR) {
+    int dest_offset = get_stack_offset_manager().getOffset(store.dest);
     oss << "  li t6, " << dest_offset << "\n";
     oss << "  add t6, sp, t6\n";
     oss << "  lw t6, 0(t6)\n";
@@ -387,15 +398,20 @@ void CodeGen::Visit(const koopa_raw_call_t &call) {
     } else {
       std::string arg_addr = get_addr_manager().getAddr(arg);
       if (arg->kind.tag == KOOPA_RVT_INTEGER) {
+        // 立即数参数
         cmd_li(arg, arg_addr);
-        oss << "  li t6, " << (i - 8) * 4 << "\n";
-        oss << "  add t6, sp, t6\n";
-        oss << "  sw " << arg_addr << ", 0(t6)\n";
       } else {
-        oss << "  li t6, " << (i - 8) * 4 << "\n";
+        // 将值从栈取到寄存器
+        int offset = get_stack_offset_manager().getOffset(arg);
+        oss << "  li t6, " << offset << "\n";
         oss << "  add t6, sp, t6\n";
-        oss << "  sw " << arg_addr << ", 0(t6)\n";
+        oss << "  lw " << arg_addr << ", 0(t6)\n";
       }
+      // 写入调用者栈区 (i-8)*4
+      oss << "  li t6, " << (i - 8) * 4 << "\n";
+      oss << "  add t6, sp, t6\n";
+      oss << "  sw " << arg_addr << ", 0(t6)\n";
+
       get_addr_manager().freeReg(arg_addr);
       get_addr_manager().freeId(arg);
     }
@@ -437,7 +453,9 @@ void CodeGen::Visit(const koopa_raw_global_alloc_t &global_alloc,
     oss << "  .word " << get_value(global_alloc.init) << "\n";
   } else if (global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT) {
     if (global_alloc.init->ty->tag == KOOPA_RTT_ARRAY) {
-      oss << "  .zero " << global_alloc.init->ty->data.array.len * 4 << "\n";
+      // 递归计算整个数组所占字节数
+      int total_size = get_elem_size(global_alloc.init->ty);
+      oss << "  .zero " << total_size << "\n";
     } else {
       oss << "  .zero 4\n";
     }
@@ -489,9 +507,9 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   auto &addr_manager = get_addr_manager();
   std::string res_addr = addr_manager.getAddr(get_elem_ptr);
   int array_offset = -1;
-  if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
-    array_offset = stack_offset_manager.getOffset(
-        get_elem_ptr.src->kind.data.get_elem_ptr);
+  if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
+      get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_PTR) {
+    array_offset = stack_offset_manager.getOffset(get_elem_ptr.src);
   } else {
     array_offset = stack_offset_manager.getOffset(get_elem_ptr.src->name);
   }
@@ -499,8 +517,9 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   oss << "  add " << res_addr << ", sp, t6\n";
   if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
     oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
+  } else if (get_elem_ptr.src->kind.tag == KOOPA_RVT_GET_PTR) {
+    oss << "  lw " << res_addr << ", 0(" << res_addr << ")\n";
   }
-
   std::string idx_addr = addr_manager.getAddr(get_elem_ptr.index);
   cmd_li(get_elem_ptr.index, idx_addr);
 
@@ -520,6 +539,42 @@ void CodeGen::Visit(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   addr_manager.freeId(get_elem_ptr);
 }
 
+void CodeGen::Visit(const koopa_raw_get_ptr_t &get_ptr) {
+  auto &stack_offset_manager = get_stack_offset_manager();
+  auto &addr_manager = get_addr_manager();
+
+  std::string res_addr = addr_manager.getAddr(get_ptr);
+  int src_offset = stack_offset_manager.getOffset(get_ptr.src);
+  oss << "  li t6, " << src_offset << "\n";
+  oss << "  add t6, sp, t6\n";
+  oss << "  lw " << res_addr << ", 0(t6)\n";
+
+  if (get_ptr.index->kind.tag == KOOPA_RVT_INTEGER) {
+    oss << "  li t6, " << get_value(get_ptr.index) << "\n";
+  } else {
+    int idx_offset = stack_offset_manager.getOffset(get_ptr.index);
+    oss << "  li t6, " << idx_offset << "\n";
+    oss << "  add t6, sp, t6\n";
+    oss << "  lw t6, 0(t6)\n";
+  }
+
+  // 将索引转换为字节偏移 = index * sizeof(element)
+  int elem_size = get_elem_size(get_ptr.src->ty->data.pointer.base);
+  if (elem_size != 1) {
+    oss << "  li t5, " << elem_size << "\n";
+    oss << "  mul t6, t6, t5\n";
+  }
+
+  oss << "  add " << res_addr << ", " << res_addr << ", t6\n";
+
+  int ptr_offset = stack_offset_manager.getOffset(get_ptr);
+  oss << "  li t6, " << ptr_offset << "\n";
+  oss << "  add t6, sp, t6\n";
+  oss << "  sw " << res_addr << ", 0(t6)\n";
+
+  addr_manager.freeReg(res_addr);
+  addr_manager.freeId(get_ptr);
+}
 void CodeGen::cmd_li(const koopa_raw_value_t &value, std::string &res_addr) {
   auto &stack_offset_manager = get_stack_offset_manager();
   if (res_addr == "x0") {

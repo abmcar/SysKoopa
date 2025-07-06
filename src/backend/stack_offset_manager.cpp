@@ -1,4 +1,5 @@
 #include "stack_offset_manager.h"
+#include "koopa.h"
 
 int StackOffsetManager::getNextId() { return ++id_counter; }
 
@@ -64,6 +65,16 @@ void StackOffsetManager::setOffset(const koopa_raw_value_t &value) {
         current_stack_offset;
     current_stack_offset += 4;
     break;
+  case KOOPA_RVT_GET_PTR:
+    // if (alloc_name_id_map.find(value->name) == alloc_name_id_map.end()) {
+    //   alloc_name_id_map[value->name] = getNextId();
+    // }
+    get_ptr_id_map[&value->kind.data.get_ptr] = getNextId();
+    id_to_offset_map[get_ptr_id_map[&value->kind.data.get_ptr]] =
+        current_stack_offset;
+    current_stack_offset += 4;
+    break;
+  case KOOPA_RVT_AGGREGATE:
   default:
     assert(false);
   }

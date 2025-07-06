@@ -67,6 +67,10 @@ std::string AddrManager::getAddr(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   return getAddrImpl(get_elem_ptr, raw_get_elem_ptr_id_map);
 }
 
+std::string AddrManager::getAddr(const koopa_raw_get_ptr_t &get_ptr) {
+  return getAddrImpl(get_ptr, raw_get_ptr_id_map);
+}
+
 void AddrManager::freeId(const koopa_raw_binary_t &binary) {
   raw_bin_id_map.erase(&binary);
 }
@@ -87,6 +91,10 @@ void AddrManager::freeId(const koopa_raw_get_elem_ptr_t &get_elem_ptr) {
   raw_get_elem_ptr_id_map.erase(&get_elem_ptr);
 }
 
+void AddrManager::freeId(const koopa_raw_get_ptr_t &get_ptr) {
+  raw_get_ptr_id_map.erase(&get_ptr);
+}
+
 // Explicit template instantiation if needed
 template std::string AddrManager::getAddrImpl(const koopa_raw_binary_t &,
                                               std::unordered_map<const koopa_raw_binary_t *, int> &);
@@ -98,3 +106,5 @@ template std::string AddrManager::getAddrImpl(const koopa_raw_value_t &,
                                               std::unordered_map<const koopa_raw_value_t *, int> &);
 template std::string AddrManager::getAddrImpl(const koopa_raw_get_elem_ptr_t &,
                                               std::unordered_map<const koopa_raw_get_elem_ptr_t *, int> &);
+template std::string AddrManager::getAddrImpl(const koopa_raw_get_ptr_t &,
+                                              std::unordered_map<const koopa_raw_get_ptr_t *, int> &);
