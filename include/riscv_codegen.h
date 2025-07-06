@@ -30,6 +30,7 @@ private:
   void Visit(const koopa_raw_call_t &);
   void Visit(const koopa_raw_global_alloc_t &, std::string var_name);
   void Visit(const koopa_raw_get_elem_ptr_t &);
+  void Visit(const koopa_raw_get_ptr_t &);
   void cmd_li(const koopa_raw_value_t &value, std::string &res_addr);
   int32_t get_value(const koopa_raw_value_t);
   void init_global_var(const koopa_raw_value_t &value);
