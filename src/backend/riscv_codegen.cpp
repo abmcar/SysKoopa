@@ -398,15 +398,20 @@ void CodeGen::Visit(const koopa_raw_call_t &call) {
     } else {
       std::string arg_addr = get_addr_manager().getAddr(arg);
       if (arg->kind.tag == KOOPA_RVT_INTEGER) {
+        // 立即数参数
         cmd_li(arg, arg_addr);
-        oss << "  li t6, " << (i - 8) * 4 << "\n";
-        oss << "  add t6, sp, t6\n";
-        oss << "  sw " << arg_addr << ", 0(t6)\n";
       } else {
-        oss << "  li t6, " << (i - 8) * 4 << "\n";
+        // 将值从栈取到寄存器
+        int offset = get_stack_offset_manager().getOffset(arg);
+        oss << "  li t6, " << offset << "\n";
         oss << "  add t6, sp, t6\n";
-        oss << "  sw " << arg_addr << ", 0(t6)\n";
+        oss << "  lw " << arg_addr << ", 0(t6)\n";
       }
+      // 写入调用者栈区 (i-8)*4
+      oss << "  li t6, " << (i - 8) * 4 << "\n";
+      oss << "  add t6, sp, t6\n";
+      oss << "  sw " << arg_addr << ", 0(t6)\n";
+
       get_addr_manager().freeReg(arg_addr);
       get_addr_manager().freeId(arg);
     }
@@ -448,7 +453,9 @@ void CodeGen::Visit(const koopa_raw_global_alloc_t &global_alloc,
     oss << "  .word " << get_value(global_alloc.init) << "\n";
   } else if (global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT) {
     if (global_alloc.init->ty->tag == KOOPA_RTT_ARRAY) {
-      oss << "  .zero " << global_alloc.init->ty->data.array.len * 4 << "\n";
+      // 递归计算整个数组所占字节数
+      int total_size = get_elem_size(global_alloc.init->ty);
+      oss << "  .zero " << total_size << "\n";
     } else {
       oss << "  .zero 4\n";
     }
@@ -549,6 +556,13 @@ void CodeGen::Visit(const koopa_raw_get_ptr_t &get_ptr) {
     oss << "  li t6, " << idx_offset << "\n";
     oss << "  add t6, sp, t6\n";
     oss << "  lw t6, 0(t6)\n";
+  }
+
+  // 将索引转换为字节偏移 = index * sizeof(element)
+  int elem_size = get_elem_size(get_ptr.src->ty->data.pointer.base);
+  if (elem_size != 1) {
+    oss << "  li t5, " << elem_size << "\n";
+    oss << "  mul t6, t6, t5\n";
   }
 
   oss << "  add " << res_addr << ", " << res_addr << ", t6\n";
